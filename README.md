@@ -6,3 +6,8 @@ Implementation of a toy scheduling problem (2 machines, 4 tasks) with classical 
 <img width="468" height="591" alt="image" src="https://github.com/user-attachments/assets/fbc07ee7-0b81-411f-98b2-ac3e5e52887c" />
 
 <img width="468" height="475" alt="image" src="https://github.com/user-attachments/assets/5cb70377-1142-465a-89e0-78a1d17cfe9c" />
+
+<img width="468" height="467" alt="image" src="https://github.com/user-attachments/assets/d49f0100-b8c0-4a8e-8b2e-2181f7e6bfaa" />
+
+<img width="468" height="202" alt="image" src="https://github.com/user-attachments/assets/4be90b7d-4431-40b5-857b-eafdadcfb1c4" />
+
