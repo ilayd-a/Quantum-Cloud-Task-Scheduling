@@ -4,7 +4,6 @@ from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
 from qiskit.circuit import Parameter
 from qiskit_algorithms.optimizers import COBYLA
-from qiskit.primitives import BackendSamplerV2
 
 
 # ---------------------------------------------------------
@@ -78,34 +77,54 @@ def qaoa_circuit(h, J, n, reps=1):
     return qc, beta_params, gamma_params
 
 
-# ---------------------------------------------------------
-# Energy evaluation using SamplerV2
-# ---------------------------------------------------------
-def qaoa_energy(params, h, J, n, sampler, backend, qc, beta_params, gamma_params, shots=1024):
+def _bitstring_to_z(bitstring: str, n: int) -> np.ndarray:
+    cleaned = bitstring.replace(" ", "")
+    bits = cleaned.zfill(n)[::-1]  # reverse to match Qiskit's little-endian convention
+    return np.array([1 if b == "1" else -1 for b in bits], dtype=float)
 
-    bind_dict = {beta_params[0]: params[0], gamma_params[0]: params[1]}
-    bound = qc.assign_parameters(bind_dict)
 
-    result = sampler.run([bound], shots=shots).result()
+def _counts_expectation(counts: dict[str, int], h, J, n) -> float:
+    total = sum(counts.values())
+    if total == 0:
+        raise ValueError("Backend returned zero shots; cannot compute energy.")
 
-    pub = result._pub_results[0]
-    databin = pub.data
-
-    bitarray = databin["meas"]
-
-    # FINAL, CORRECT DECODER FOR YOUR QISKIT VERSION
-    arr = bitarray.to_bool_array().astype(int)
-
-    energy = 0.0
-    for row in arr:
-        z = np.where(row == 1, 1, -1)
-        e = np.sum(h * z)
+    exp_val = 0.0
+    for bitstring, freq in counts.items():
+        z = _bitstring_to_z(bitstring, n)
+        e = float(np.dot(h, z))
         for i in range(n):
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 e += J[i, j] * z[i] * z[j]
-        energy += e
+        exp_val += e * (freq / total)
+    return exp_val
 
-    return energy / len(arr)
+
+# ---------------------------------------------------------
+# Energy evaluation using AerSimulator counts
+# ---------------------------------------------------------
+def qaoa_energy(params, h, J, n, backend, qc, beta_params, gamma_params, shots=1024):
+
+    if len(params) != len(beta_params) + len(gamma_params):
+        raise ValueError(
+            "Parameter vector length does not match the requested number of QAOA layers."
+        )
+
+    bind_dict = {}
+    offset = 0
+    for beta in beta_params:
+        bind_dict[beta] = params[offset]
+        offset += 1
+    for gamma in gamma_params:
+        bind_dict[gamma] = params[offset]
+        offset += 1
+
+    bound = qc.assign_parameters(bind_dict)
+    result = backend.run(bound, shots=shots).result()
+    counts = result.get_counts()
+    if isinstance(counts, list):
+        counts = counts[0]
+
+    return _counts_expectation(counts, h, J, n)
 
 
 
@@ -125,23 +144,21 @@ def solve_qaoa_local(tasks, reps=1, maxiter=30):
     noise_model = NoiseModel()
     backend = AerSimulator(noise_model=noise_model)
 
-    sampler = BackendSamplerV2(backend=backend)
-
     def objective(par):
         return qaoa_energy(
             par, h, J, n,
-            sampler,
             backend,
             qc, beta_params, gamma_params
         )
 
     optimizer = COBYLA(maxiter=maxiter)
-    params0 = np.array([0.5, 0.5])
+    num_params = len(beta_params) + len(gamma_params)
+    params0 = np.full(num_params, 0.5)
 
     print("Running classical optimization...")
     res = optimizer.minimize(objective, params0)
 
     return {
-        "energy": res.fun,
-        "optimal_params": res.x,
+        "energy": float(res.fun),
+        "optimal_params": res.x.tolist(),
     }
