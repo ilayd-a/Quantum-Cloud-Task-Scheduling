@@ -233,25 +233,22 @@ Every cell $Q_{u,v}$ tells you the “energy interaction” if variable $u$ and 
 We convert:
 
 $$
-x_i \in \{0,1\} \;\rightarrow\; z_i \in \{-1, +1\}
+x_i \in \{0,1\} \rightarrow z_i \in \{-1, +1\}
 $$
 
-via:
+via
 
 $$
 x_i = \frac{1 - z_i}{2}
 $$
 
-Plugging that into $E(x)$ gives:
+Plugging that into E(x) gives:
 
 $$
-E(z) = \text{constant} \;+\; \sum_i h_i z_i \;+\; \sum_{i<j} J_{ij} z_i z_j
+E(z) = \text{constant} + \sum_i h_i z_i + \sum_{i<j} J_{ij} z_i z_j
 $$
 
-(this is the Ising Hamiltonian form!)
-
-- $h_i$: linear coefficients and diagonal parts of $Q$  
-- $J_{i,j}$: entries in $Q$ (pairwise coupling)
+(h_i are linear coefficients; J_ij are pairwise couplings)
 
 
 ---
@@ -260,68 +257,79 @@ $$
 
 At a high level, the QAOA circuit alternates between:
 
+
 ### 1. Cost Hamiltonian layer
-Applies problem-specific phase shifts based on your Ising Hamiltonian.
 
 $$
-U_C(\gamma) = e^{-i\gamma H_C}
+U_C(\gamma) = e^{-i \gamma H_C}
 $$
+
 
 ### 2. Mixer Hamiltonian layer
-Spreads amplitude across bitstrings so the system can explore other configurations.
 
 $$
-U_M(\beta) = e^{-i\beta H_M}, \qquad H_M = \sum_i X_i
+U_M(\beta) = e^{-i \beta H_M}
 $$
 
-A full QAOA circuit of depth $(p)$ is:
+where
 
 $$
-|\psi(\gamma, \beta)\rangle
-=
-U_M(\beta_p)\,
+H_M = \sum_i X_i
+$$
+
+
+A full QAOA circuit of depth p is:
+
+$$
+|\psi(\gamma, \beta)\rangle =
+U_M(\beta_p)
 U_C(\gamma_p)
 \cdots
-U_M(\beta_1)\,
-U_C(\gamma_1)\,
+U_M(\beta_1)
+U_C(\gamma_1)
 |+\rangle^{\otimes n}
 $$
 
-- **Qubits** represent binary decision variables $(x_{i,m})$ (one per job–machine pair).  
-- **Initial state** is $(|+\rangle^{\otimes n})$ (equal superposition).  
-- **Cost unitaries:** controlled-phase gates implementing $e^{-i\gamma J_{i,j} Z_i Z_j}$ and single-qubit $e^{-i\gamma h_i Z_i}$.  
-- **Mixing unitaries:** single-qubit $R_x(2\beta)$.  
-- **Measurements:** all qubits measured in the Z basis to produce bitstrings corresponding to job assignments.
+
+- Qubits represent binary decision variables x_(i,m)  
+- Initial state is |+>^{(n)}  
+- Cost unitaries implement exp(-i gamma J_ij Z_i Z_j) and exp(-i gamma h_i Z_i)  
+- Mixing unitaries are single-qubit R_x(2 beta) rotations  
+- All qubits are measured in the Z basis at the end  
+
 
 Initial superposition:
 
 $$
-|\psi_0\rangle = |+\rangle^{\otimes n}
-= \frac{1}{\sqrt{2^n}}
+|\psi_0\rangle =
+|+\rangle^{\otimes n}
+=
+\frac{1}{\sqrt{2^n}}
 \sum_{x \in \{0,1\}^n} |x\rangle
 $$
+
 
 QAOA state:
 
 $$
-|\psi(\gamma,\beta)\rangle
-=
-U_M(\beta)\,
-U_C(\gamma)\,
+|\psi(\gamma, \beta)\rangle =
+U_M(\beta)
+U_C(\gamma)
 |\psi_0\rangle
 $$
 
-Probability of measuring bitstring $x$:
+
+Probability of measuring bitstring x:
 
 $$
-P(x) = \big|\langle x \mid \psi(\gamma,\beta)\rangle\big|^2
+P(x) = |\langle x | \psi(\gamma, \beta)\rangle|^2
 $$
+
 
 Optimal parameters:
 
 $$
-(\gamma^*, \beta^*)
-=
+(\gamma^*, \beta^*) =
 \arg\min_{\gamma,\beta}
-\langle \psi(\gamma,\beta) \mid H_C \mid \psi(\gamma,\beta)\rangle
+\langle \psi(\gamma,\beta) | H_C | \psi(\gamma,\beta) \rangle
 $$
