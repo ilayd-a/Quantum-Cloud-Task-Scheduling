@@ -64,35 +64,35 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
 - For hardware validation, swap `AerSimulator` with provider-specific backends or noise models inside `solve_qaoa_local`.
 
 With these additions, the repository satisfies the usual reproducibility requirements for quantum optimization workshops: sealed dependencies, deterministic data, declarative experiment configs, and scripted result synthesis.
-# The General QUBO Form
+## 1. The General QUBO Form
 
 $$
 E(x) = x^T Q x + c^T x
 $$
 
 x: vector of **binary variables** \((x_1, x_2, \ldots, x_n)\)  
-- \( \leftarrow \text{in our case this is the flattened vector of } x_{i,m} \text{ job–machine assignments} \)
+- in our case this is the flattened vector of \(x_{i,m}\) job–machine assignments
 
 Q: symmetric **matrix of quadratic coefficients**  
-- \( \leftarrow \text{captures pairwise interactions between binary variables} \)  
-- \( \leftarrow \text{e.g., } Q_{i,j} x_i x_j \text{ could mean “if two jobs are on the same machine, add a penalty”} \)
+- captures pairwise interactions between binary variables  
+- e.g., \(Q_{i,j} x_i x_j\) could mean “if two jobs are on the same machine, add a penalty”
 
 c: vector of **linear coefficients**  
-- \( \leftarrow \text{captures individual variable contributions (cost or bias for each assignment)} \)
+- captures individual variable contributions (cost or bias for each assignment)
 
 E(x): total **energy / cost** to minimize
 
 ---
 
-# Problem
+## 2. Problem Setup
 
-We want to assign a set of jobs
+We want to assign a set of jobs:
 
 $$
 J = \{1, \ldots, n\}
 $$
 
-to a set of identical machines
+to a set of identical machines:
 
 $$
 M = \{1, \ldots, M\}
@@ -100,13 +100,13 @@ $$
 
 so that:
 
-1. every job goes to **exactly one** machine,  
-2. all machines have **similar total workloads**,  
-3. optionally, total finish time (**makespan**) is small.
+1. every job goes to exactly one machine  
+2. all machines have similar total workloads  
+3. optionally, total finish time (makespan) is small
 
 ---
 
-# Decision Variables
+## 3. Decision Variables
 
 We create:
 
@@ -127,7 +127,7 @@ $$
 L_m = \sum_i p_i x_{i,m}
 $$
 
-The ideal world is when every \(L_m\) equals the **average load**:
+The average load is:
 
 $$
 \bar{L} = \frac{1}{M} \sum_i p_i
@@ -135,69 +135,55 @@ $$
 
 ---
 
-# Balanced Load Penalty
+## 4. Balanced Load Penalty
 
-We can’t easily minimize the maximum load directly in QUBO form  
-(the “max” is not polynomial), so we approximate **balanced loads** by minimizing how far each load is from the average:
+Minimize how far each load is from the average:
 
 $$
 E_{\text{balance}} = \sum_m (L_m - \bar{L})^2 \approx \sum_m L_m^2
 $$
-- \( \leftarrow \text{since } \bar{L} \text{ is constant, the difference only adds a constant offset} \)
 
-Plug \( L_m = \sum_i p_i x_{i,m} \) in:
+- since \(\bar{L}\) is constant, subtracting it only adds a constant shift
+
+Substituting \(L_m = \sum_i p_i x_{i,m}\):
 
 $$
-E_{\text{balance}}
-= \sum_m \left( \sum_i p_i x_{i,m} \right)^2
+E_{\text{balance}} = \sum_m \left( \sum_i p_i x_{i,m} \right)^2
 $$
 
-This is our **first quadratic term**.  
-We scale its importance by a weight \( \lambda_1 \).
+- this is our first quadratic term  
+- we scale it with weight \(\lambda_1\)
 
 ---
 
-# Assignment Constraint
+## 5. Assignment Constraint Penalty
 
-For every job \(i\):
+Each job must go to exactly one machine:
 
 $$
 \sum_m x_{i,m} = 1
 $$
 
-Because QUBO problems must be unconstrained,  
-we convert this equality into a penalty that becomes zero when the constraint is satisfied and large when it isn’t:
+Convert to a quadratic penalty:
 
 $$
-E_{\text{assign}}
-= \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
+E_{\text{assign}} =
+\sum_i \left( 1 - \sum_m x_{i,m} \right)^2
 $$
 
-This term is also **quadratic** and vanishes when a job is assigned to **one and only one** machine.  
-We scale this by \( \lambda_2 \).
+- this enforces one-hot assignment  
+- scaled by \(\lambda_2\)
 
----
-
-# Total QUBO Energy
-
-The total “energy” or cost the algorithm will minimize is the weighted sum:
+Total QUBO objective:
 
 $$
 E(x) =
 \lambda_1 \sum_m \left( \sum_i p_i x_{i,m} \right)^2
-\;+\;
++
 \lambda_2 \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
 $$
 
-Both terms are quadratic in binary variables,  
-because \(x_{i,m}^2 = x_{i,m}\).
-
-That’s exactly the structure **required** for a QUBO.
-
-Once expanded, we can collect coefficients into  
-a matrix \(Q\) (for all \(x_i x_j\) pairs)  
-and a vector \(c\) (for single-variable terms),  
-giving the compact form:
+Quadratic form:
 
 $$
 E(x) = x^T Q x + c^T x + \text{constant}
@@ -205,132 +191,110 @@ $$
 
 ---
 
-# Expanding Into Generic Q Form
+## 6. Building the Q Matrix + Ising Conversion
 
-When we fully expand both squared terms, we can group everything into this generic shape:
+General expanded Q form:
 
 $$
 E(x)
 =
 \sum_{i,j,m,m'}
-Q_{(i,m),(j,m')}
-x_{i,m} x_{j,m'}
-\;+\;
+Q_{(i,m),(j,m')} \, x_{i,m} x_{j,m'}
++
 \sum_{i,m} c_{i,m} x_{i,m}
-\;+\;
++
 \text{const}
 $$
 
-Here:
+Interpretation:
+- each pair \((i,m)\) is one binary variable  
+- \(Q\) encodes interactions  
+- \(c\) encodes linear preferences  
 
-- each pair of indices \((i,m)\) is just **one variable**  
-- \(Q_{(i,m),(j,m')}\) tells us how two variables interact  
-- \(c_{i,m}\) gives the linear bias (favor/disfavor certain assignments)
+### a) Machine-level interactions (from \(\lambda_1\))
 
----
+Diagonal:
 
-# Building the Q Matrix Logically
-
-We can think of \(Q\) as being composed of **two types of blocks**:
-
----
-
-## a) Machine-level blocks (from the balance term \( \lambda_1 \))
-
-Within each machine \(m\):
-
-**Diagonal entries:**  
 $$
 Q_{(i,m),(i,m)} = \lambda_1 p_i^2
 $$
 
-**Off-diagonal entries (for \(i \neq j\)):**  
+Off-diagonal (within same machine):
+
 $$
 Q_{(i,m),(j,m)} = 2 \lambda_1 p_i p_j
 $$
 
-- \( \leftarrow \text{this penalizes putting too many long jobs on the same machine} \)
+- this penalizes putting too many long jobs on the same machine
 
----
+### b) Job-level interactions (from \(\lambda_2\))
 
-## b) Job-level blocks (from the one-hot term \( \lambda_2 \))
+Diagonal:
 
-Within each job \(i\):
-
-**Diagonal entries:**  
 $$
 Q_{(i,m),(i,m)} = -\lambda_2
 $$
 
-**Off-diagonal entries (for \(m \neq m'\)):**  
+Off-diagonal (within same job):
+
 $$
 Q_{(i,m),(i,m')} = 2 \lambda_2
 $$
 
-The full \(Q\) is just these effects added together.  
-Every entry \(Q_{u,v}\) tells you the “energy interaction”  
-if variable \(u\) and variable \(v\) are both 1.
+The full Q matrix is the sum of these effects.
 
 ---
 
-# From QUBO to the Ising Hamiltonian
+### Converting QUBO to Ising
 
-We convert:
+Binary → spin:
 
 $$
-x_i \in \{0,1\} \;\longrightarrow\; z_i \in \{-1,+1\}
+x_i \in \{0,1\} \longrightarrow z_i \in \{-1,+1\}
 $$
 
-via:
+Mapping:
 
 $$
 x_i = \frac{1 - z_i}{2}
 $$
 
-Plugging that into \(E(x)\) gives:
+Plugging into the energy yields the Ising Hamiltonian:
 
 $$
 E(z)
 =
 \text{constant}
-+ \sum_i h_i z_i
-+ \sum_{i<j} J_{i,j} z_i z_j
++
+\sum_i h_i z_i
++
+\sum_{i<j} J_{i,j} z_i z_j
 $$
 
-- \( \leftarrow \text{this is the Ising Hamiltonian form!} \)
-- \( \leftarrow \text{linear coefficients and diagonal parts of } Q \)
-- \( \leftarrow \text{entries in } Q \text{ (pairwise coupling)} \)
-
-
----
-
-# Circuit Structure (QAOA)
-
-At a high level, the QAOA circuit alternates between:
+- this is the Ising Hamiltonian form  
+- linear coefficients \(h_i\) come from diagonal parts of Q  
+- coupling terms \(J_{i,j}\) come from off-diagonal Q entries
 
 ---
 
-## 1. Cost Hamiltonian layer
+## 7. QAOA Circuit Structure
 
-Applies problem-specific phase shifts based on your Ising Hamiltonian.
+QAOA alternates between Cost and Mixer unitaries.
+
+### Cost Hamiltonian layer
 
 $$
 U_C(\gamma) = e^{-i \gamma H_C}
 $$
 
----
-
-## 2. Mixer Hamiltonian layer
-
-Spreads amplitude across bitstrings so the system can explore other configurations.
+### Mixer Hamiltonian layer
 
 $$
-U_M(\beta) = e^{-i \beta H_M}, \qquad H_M = \sum_i X_i
+U_M(\beta) = e^{-i \beta H_M}
+\qquad\text{where } H_M = \sum_i X_i
 $$
 
----
-
-A full QAOA circuit of depth \(p\) is:
+### Full QAOA circuit (depth \(p\)):
 
 $$
 |\psi(\gamma, \beta)\rangle
@@ -343,15 +307,13 @@ U_C(\gamma_1)
 |+\rangle^{\otimes n}
 $$
 
-- \( \leftarrow \text{Qubits represent binary decision variables } x_{i,m} \text{ (one per job–machine pair)} \)
-- \( \leftarrow \text{Initial state is } |+\rangle^{\otimes n} \text{ (equal superposition)} \)
-- \( \leftarrow \text{Cost unitaries implement } e^{-i\gamma J_{i,j} Z_i Z_j} \text{ and } e^{-i\gamma h_i Z_i} \)
-- \( \leftarrow \text{Mixing unitaries implement } R_X(2\beta) \)
-- \( \leftarrow \text{Measurements occur in the Z basis} \)
+- qubits represent binary decision variables \(x_{i,m}\)  
+- initial state: \(|+\rangle^{\otimes n}\)  
+- cost unitaries implement \(e^{-i\gamma J_{i,j} Z_i Z_j}\) and \(e^{-i\gamma h_i Z_i}\)  
+- mixing unitaries are \(R_X(2\beta)\)  
+- measure in Z basis to obtain assignments
 
----
-
-# Initial Superposition
+### Initial Superposition
 
 $$
 |\psi_0\rangle
@@ -362,40 +324,32 @@ $$
 \sum_{x \in \{0,1\}^n} |x\rangle
 $$
 
----
-
-# QAOA State
+### QAOA State
 
 $$
 |\psi(\gamma, \beta)\rangle
 =
-U_M(\beta) \, U_C(\gamma) \, |\psi_0\rangle
+U_M(\beta) U_C(\gamma) |\psi_0\rangle
 $$
 
----
-
-# Probability of Measuring Bitstring \(x\)
+### Probability of measuring bitstring \(x\):
 
 $$
 P(x)
 =
-\left| \langle x \,|\, \psi(\gamma, \beta) \rangle \right|^2
+\left| \langle x \mid \psi(\gamma, \beta) \rangle \right|^2
 $$
 
----
-
-# Optimal Parameters
+### Optimal Parameters
 
 $$
-(\gamma^*, \beta^*)
-=
-\arg\min_{\gamma, \beta}
-\;
+(\gamma^*, \beta^*) =
+\arg\min_{\gamma,\beta}
 \langle
 \psi(\gamma, \beta)
-\;|\;
+\mid
 H_C
-\;|\;
+\mid
 \psi(\gamma, \beta)
 \rangle
 $$
