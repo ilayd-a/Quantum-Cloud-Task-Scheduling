@@ -66,176 +66,324 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
 With these additions, the repository satisfies the usual reproducibility requirements for quantum optimization workshops: sealed dependencies, deterministic data, declarative experiment configs, and scripted result synthesis.
 # The General QUBO Form
 
-**QUBO Objective:**  
-$E(x) = x^T Q x + C^T x$
+$$
+E(x) = x^T Q x + C^T x
+$$
 
-- **x:** vector of binary variables $(x_1, x_2, \ldots, x_n)$  
-  → In our case, this is the flattened vector of $x_{i,m}$ job–machine assignments.  
-- **Q:** symmetric matrix of quadratic coefficients  
-  → Captures pairwise interactions between binary variables.  
-- **c:** vector of linear coefficients  
-  → Captures individual variable contributions (cost or bias).  
+**x:** vector of **binary variables** $(x_1, x_2, \ldots, x_n)$  
+→ in our case this is the flattened vector of $x_{i,m}$ job–machine assignments
 
----
+**Q:** symmetric **matrix of quadratic coefficients**  
+→ captures **pairwise interactions** between binary variables  
+→ e.g. $Q_{i,j} x_i x_j$ could mean “if two jobs are on the same machine, add a penalty”
 
-# Problem Setup
+**c:** vector of **linear coefficients**  
+→ captures **individual variable contributions** (cost or bias for each assignment)
 
-We have:
+$E(x)$: total **energy/cost** to minimize
 
-**Jobs:**  
-$J = \{1, \ldots, n\}$  
-
-**Machines:**  
-$M = \{1, \ldots, M\}$  
-
-Goals:
-1. Each job is assigned to exactly one machine.  
-2. All machines have similar workloads.  
-3. Optionally minimize makespan.
 
 ---
 
-# Decision Variables
+## Problem
 
-**Binary assignment variable:**  
-$x_{i,m} = 1$ if job $i$ runs on machine $m$, else $0$.
+We want to assign a set of jobs
 
-**Machine load:**  
-$L_m = \sum_i p_i x_{i,m}$  
+$$
+J = \{1, \ldots, n\}
+$$
 
-**Average load:**  
-$\bar{L} = \frac{1}{M} \sum_i p_i$
+to a set of identical machines
 
----
+$$
+M = \{1, \ldots, M\}
+$$
 
-# Balanced Load Penalty
+so that:
 
-**Balance term:**  
-$E_{\text{balance}} = \sum_m (L_m - \bar{L})^2$
+1. every job goes to **exactly one** machine,  
+2. all machines have **similar total workloads**,  
+3. optionally, total finish time (makespan) is small.
 
-After substituting $L_m = \sum_i p_i x_{i,m}$:
-
-**Expanded balance term:**  
-$E_{\text{balance}} = \sum_m \left( \sum_i p_i x_{i,m} \right)^2$
-
-Scaled by $\lambda_1$.
 
 ---
 
-# Assignment Constraint Penalty
+## Decision Variables
 
-**One-hot assignment condition:**  
-$\sum_m x_{i,m} = 1$
+We create
 
-Convert to penalty:
+$$
+x_{i,m} =
+\begin{cases}
+1 & \text{if job } i \text{ runs on machine } m \\
+0 & \text{otherwise}
+\end{cases}
+$$
 
-**Assignment penalty:**  
-$E_{\text{assign}} = \sum_i \left( 1 - \sum_m x_{i,m} \right)^2$
+These are the only unknowns the solver will decide.
 
-Scaled by $\lambda_2$.
+If each job $i$ has processing time $p_i$,  
+the load on machine $m$ is
 
----
+$$
+L_m = \sum_i p_i x_{i,m}
+$$
 
-# Full QUBO Energy
+The ideal world is when every $L_m$ equals the average load
 
-**Total energy:**  
-$E(x) = \lambda_1 \sum_m (\sum_i p_i x_{i,m})^2 + \lambda_2 \sum_i (1 - \sum_m x_{i,m})^2$
+$$
+\bar{L} = \frac{1}{M} \sum_i p_i
+$$
 
-Generic quadratic form:
-
-**General QUBO:**  
-$E(x) = x^T Q x + c^T x + \text{constant}$
-
----
-
-# Q-Matrix Structure
-
-## Machine-level interactions (from $\lambda_1$)
-
-**Diagonal:**  
-$Q_{(i,m),(i,m)} = \lambda_1 p_i^2$
-
-**Off-diagonal (same machine, different jobs):**  
-$Q_{(i,m),(j,m)} = 2 \lambda_1 p_i p_j$
 
 ---
 
-## Job-level interactions (from $\lambda_2$)
+## Balanced Load Penalty
 
-**Diagonal:**  
-$Q_{(i,m),(i,m)} = -\lambda_2$
+We can’t easily minimize the maximum load directly in QUBO form (the “max” is not polynomial),  
+so we approximate “balanced loads” by minimizing how far each load is from the average:
 
-**Off-diagonal (same job, different machines):**  
-$Q_{(i,m),(i,m')} = 2 \lambda_2$
+$$
+E_{\text{balance}} = \sum_m (L_m - \bar{L})^2 \approx \sum_m L_m^2
+$$
 
----
+(since $\bar{L}$ is constant, the difference only adds a constant offset)
 
-# From QUBO to Ising Hamiltonian
+Plug $L_m = \sum_i p_i x_{i,m}$ in:
 
-**Binary–spin conversion:**  
-$x_i \in \{0,1\} \rightarrow z_i \in \{-1,+1\}$  
+$$
+E_{\text{balance}} = \sum_m \left( \sum_i p_i x_{i,m} \right)^2
+$$
 
-**Mapping:**  
-$x_i = \frac{1 - z_i}{2}$
+This is our first quadratic term.  
+We scale its importance by a weight $\lambda_1$.
 
-**Ising form:**  
-$E(z) = \text{constant} + \sum_i h_i z_i + \sum_{i<j} J_{i,j} z_i z_j$
-
-Where:
-- $h_i$ are linear coefficients  
-- $J_{i,j}$ are coupling strengths  
 
 ---
 
-# Circuit Structure (QAOA)
+## Assignment Constraint Penalty
 
-## 1. Cost Hamiltonian Layer
+For every job $i$,
 
-**Cost unitary:**  
-$U_C(\gamma) = e^{-i \gamma H_C}$
+$$
+\sum_m x_{i,m} = 1
+$$
 
-## 2. Mixer Hamiltonian Layer
+Because QUBO problems must be unconstrained,  
+we convert this equality into a penalty that becomes zero when the constraint is satisfied  
+and large when it isn’t:
 
-**Mixer unitary:**  
-$U_M(\beta) = e^{-i \beta H_M}$
+$$
+E_{\text{assign}} = \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
+$$
 
-**Mixer Hamiltonian:**  
-$H_M = \sum_i X_i$
+This term is also quadratic and vanishes when a job is assigned to one and only one machine.  
+We scale this by $\lambda_2$.
 
----
-
-# Full QAOA Circuit
-
-**Circuit of depth $p$:**  
-$|\psi(\gamma,\beta)\rangle =  
-U_M(\beta_p) U_C(\gamma_p) \cdots U_M(\beta_1) U_C(\gamma_1) |+\rangle^{\otimes n}$
-
-Qubits represent binary decision variables $(x_{i,m})$.
 
 ---
 
-# Initial State
+## Total QUBO Energy
 
-**Initial superposition:**  
-$|\psi_0\rangle = |+\rangle^{\otimes n} = \frac{1}{\sqrt{2^n}} \sum_{x \in \{0,1\}^n} |x\rangle$
+The total “energy” or cost the algorithm will minimize is the weighted sum of those two penalties:
+
+$$
+E(x) =
+\lambda_1 \sum_m \left( \sum_i p_i x_{i,m} \right)^2
++
+\lambda_2 \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
+$$
+
+Both terms are quadratic in binary variables,  
+because $x_{i,m}^2 = x_{i,m}$.
+
+That’s exactly the structure **required** for a QUBO.
+
+Once expanded, we can collect coefficients into a matrix $Q$ (for all $x_i x_j$ pairs)  
+and a vector $c$ (for single-variable terms), giving the compact form:
+
+$$
+E(x) = x^T Q x + c^T x + \text{constant}
+$$
+
 
 ---
 
-# QAOA State
+## Expanding Into Generic Q Form
 
-**State after parameters $(\gamma,\beta)$:**  
-$|\psi(\gamma,\beta)\rangle = U_M(\beta) U_C(\gamma) |\psi_0\rangle$
+When we fully expand both squared terms, we can group everything into this generic shape:
+
+$$
+E(x) =
+\sum_{i,j,m,m'} Q_{(i,m),(j,m')} x_{i,m} x_{j,m'}
++
+\sum_{i,m} c_{i,m} x_{i,m}
++ \text{const}
+$$
+
+Here:
+
+- each pair of indices $(i,m)$ is just **one variable**,  
+- $Q_{(i,m),(j,m')}$ tells us how two variables interact,  
+- $c_{i,m}$ gives the linear bias (favor/disfavor certain assignments).
+
 
 ---
 
-# Measurement Probability
+## Building the Q Matrix Logically
 
-**Probability of observing bitstring $x$:**  
-$P(x) = |\langle x | \psi(\gamma,\beta)\rangle|^2$
+We can think of $Q$ as being composed of **two types of blocks**:
+
+### a) Machine-level blocks (from the balance term $\lambda_1$)
+
+Within each machine $m$:
+
+- Diagonal entries  
+  $$
+  Q_{(i,m),(i,m)} = \lambda_1 p_i^2
+  $$
+- Off-diagonal entries (for $i \neq j$)  
+  $$
+  Q_{(i,m),(j,m)} = 2 \lambda_1 p_i p_j
+  $$
+
+This penalizes putting too many long jobs on the same machine.
+
+
+### b) Job-level blocks (from the one-hot term $\lambda_2$)
+
+Within each job $i$:
+
+- Diagonal entries  
+  $$
+  Q_{(i,m),(i,m)} = -\lambda_2
+  $$
+- Off-diagonal entries (for $m \neq m'$)  
+  $$
+  Q_{(i,m),(i,m')} = 2 \lambda_2
+  $$
+
+The full $Q$ is just these effects added together.  
+Every cell $Q_{u,v}$ tells you the “energy interaction” if variable $u$ and variable $v$ are both 1.
+
 
 ---
 
-# Optimal Parameters
+## From QUBO to the Ising Hamiltonian
 
-**Optimal angles:**  
-$(\gamma^*, \beta^*) = \arg\min_{\gamma,\beta} \langle \psi(\gamma,\beta) | H_C | \psi(\gamma,\beta) \rangle$
+We convert
+
+$$
+x_i \in \{0,1\} \rightarrow z_i \in \{-1, +1\}
+$$
+
+via
+
+$$
+x_i = \frac{1 - z_i}{2}
+$$
+
+Plugging that into $E(x)$ gives:
+
+$$
+E(z) = \text{constant} + \sum_i h_i z_i + \sum_{i<j} J_{i,j} z_i z_j \qquad \leftarrow \text{this is the Ising Hamiltonian form!}
+$$
+
+- $h_i$: linear coefficients and diagonal parts of $Q$  
+- $J_{i,j}$: entries in $Q$ (pairwise coupling)
+
+
+---
+
+# Circuit Structure
+
+At a high level, the QAOA circuit alternates between:
+
+---
+
+## 1. Cost Hamiltonian layer
+
+Applies problem-specific phase shifts based on your Ising Hamiltonian.
+
+$$
+U_C(\gamma) = e^{-i \gamma H_C}
+$$
+
+---
+
+## 2. Mixer Hamiltonian layer
+
+Spreads amplitude across bitstrings so the system can explore other configurations.
+
+$$
+U_M(\beta) = e^{-i \beta H_M}, \qquad H_M = \sum_i X_i
+$$
+
+
+---
+
+A full QAOA circuit of depth $p$ is:
+
+$$
+|\psi(\gamma, \beta)\rangle
+=
+U_M(\beta_p) U_C(\gamma_p)
+\cdots
+U_M(\beta_1) U_C(\gamma_1)
+|+\rangle^{\otimes n}
+$$
+
+
+- **Qubits** represent binary decision variables $x_{i,m}$ (one per job–machine pair).  
+- **Initial state** is $|+\rangle^{\otimes n}$ (equal superposition).  
+- **Cost unitaries:** controlled-phase gates implementing $e^{-i\gamma J_{i,j} Z_i Z_j}$ for coupling terms  
+  and $e^{-i\gamma h_i Z_i}$ for local fields.  
+- **Mixing unitaries:** single-qubit $R_X(2\beta)$ rotations implementing $e^{-i\beta X_i}$.  
+- **Measurements:** all qubits measured in the Z basis to produce bitstrings corresponding to job assignments.
+
+
+---
+
+## Initial superposition
+
+$$
+|\psi_0\rangle
+=
+|+\rangle^{\otimes n}
+=
+\frac{1}{\sqrt{2^n}}
+\sum_{x \in \{0,1\}^n} |x\rangle
+$$
+
+
+---
+
+## QAOA state
+
+$$
+|\psi(\gamma, \beta)\rangle
+=
+U_M(\beta) U_C(\gamma)
+|\psi_0\rangle
+$$
+
+
+---
+
+## Probability of measuring bitstring $x$
+
+$$
+P(x) = |\langle x | \psi(\gamma, \beta)\rangle|^2
+$$
+
+
+---
+
+## Optimal parameters
+
+$$
+(\gamma^\*, \beta^\*)
+=
+\arg\min_{\gamma,\beta}
+\langle \psi(\gamma,\beta) | H_C | \psi(\gamma,\beta)\rangle
+$$
