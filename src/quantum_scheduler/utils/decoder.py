@@ -1,58 +1,38 @@
 import numpy as np
-from typing import Iterable, Sequence
+from typing import Sequence
 
 
-def decode_solution(x: Sequence[float], p: Sequence[int], M: int):
-    """Original decoder for flattened assignment vectors of length n * M."""
+def decode_solution_vector(x: Sequence[float], p: Sequence[int], machines: int):
+    """
+    Decode a flattened assignment vector (length = n * machines) into an
+    assignment list, per-machine loads, and makespan. Each job is assigned to
+    the machine with the maximum indicator in its one-hot block.
+    """
     n = len(p)
-    x = np.array(x)
+    x = np.asarray(x).reshape(n, machines)
 
     assignments = []
-    loads = np.zeros(M, dtype=int)
+    loads = np.zeros(machines, dtype=float)
 
     for i in range(n):
-        row = x[i * M : (i + 1) * M]
-        m = row.argmax()
-        assignments.append(int(m))
+        m = int(np.argmax(x[i]))
+        assignments.append(m)
         loads[m] += p[i]
 
-    return assignments, loads.tolist(), int(loads.max())
-
-
-def decode_binary_assignment(bitstring: str, tasks: Sequence[dict], machines: int = 2):
-    """
-    Interpret a single register bitstring (produced by the QAOA circuit) as a
-    binary assignment for a two-machine partitioning problem.
-
-    We adopt Qiskit's little-endian convention: the rightmost character
-    corresponds to qubit 0 / task 0. A '1' indicates the task is assigned to
-    machine 1, while '0' keeps it on machine 0. For now this decoder only
-    supports the two-machine case used in our QUBO construction.
-    """
-    if machines != 2:
-        raise ValueError(
-            "decode_binary_assignment currently supports exactly 2 machines."
-        )
-
-    clean_bits = bitstring.replace(" ", "")[::-1]
-    n = len(tasks)
-    if len(clean_bits) < n:
-        clean_bits = clean_bits.zfill(n)
-
-    loads = [0] * machines
-    assignment = []
-
-    for idx in range(n):
-        task = tasks[idx]
-        processing = int(task.get("p_i", task.get("p", 0)))
-        bit = clean_bits[idx]
-        machine = 1 if bit == "1" else 0
-        assignment.append(machine)
-        loads[machine] += processing
-
     return {
-        "assignment": assignment,
-        "loads": loads,
-        "makespan": max(loads) if loads else 0,
-        "bitstring": bitstring,
+        "assignment": assignments,
+        "loads": loads.tolist(),
+        "makespan": float(loads.max()),
     }
+
+
+def bitstring_to_vector(bitstring: str, num_qubits: int) -> np.ndarray:
+    """
+    Convert a measurement bitstring (Qiskit ordering) into a 0/1 numpy vector
+    aligned with qubit indices (qubit 0 is the least significant bit).
+    """
+    cleaned = bitstring.replace(" ", "")
+    if len(cleaned) < num_qubits:
+        cleaned = cleaned.zfill(num_qubits)
+    bits = cleaned[::-1]  # flip so index 0 corresponds to qubit 0
+    return np.array([1 if b == "1" else 0 for b in bits[:num_qubits]], dtype=float)
