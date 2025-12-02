@@ -173,4 +173,147 @@ E(x) =
 \lambda_2 \sum_i \left( 1 - \sum_m x_{i,m} \right)^2.
 $$
 
-Both terms are quadratic in binary variables, because
+Both terms are quadratic in binary variables, because $x_{i,m}^2 = x_{i,m}$.  
+
+That’s exactly the structure required for a QUBO.  
+
+Once expanded, we can collect coefficients into a matrix $Q$ (for all $x_i x_j$ pairs) and a vector $c$ (for single-variable terms), giving the compact form:
+
+$$
+E(x) = x^T Q x + c^T x + \text{constant}.
+$$
+
+---
+
+When we fully expand both squared terms, we can group everything into this generic shape:
+
+$$
+E(x) =
+\sum_{i,j,m,m'} Q_{(i,m),(j,m')} x_{i,m} x_{j,m'}
++
+\sum_{i,m} c_{i,m} x_{i,m}
++ \text{const}.
+$$
+
+Here:
+
+- each pair of indices $(i,m)$ is just one variable,  
+- $Q_{(i,m),(j,m')}$ tells us how two variables interact,  
+- $c_{i,m}$ gives the linear bias (favor/disfavor certain assignments).  
+
+---
+
+## Building the Q matrix logically
+
+We can think of $Q$ as being composed of two types of blocks:
+
+### a) machine-level blocks (from the balance term $\lambda_1$)
+
+within each machine $m$:
+
+- Diagonal entries $Q_{(i,m),(i,m)} = \lambda_1 p_i^2$  
+- Off-diagonal entries $Q_{(i,m),(j,m)} = 2 \lambda_1 p_i p_j$ for $i \neq j$  
+
+This penalizes putting too many long jobs on the same machine.
+
+### b) job-level blocks (from the one-hot term $\lambda_2$)
+
+within each job $i$:
+
+- Diagonal entries $Q_{(i,m),(i,m)} = -\lambda_2$  
+- Off diagonal entries $Q_{(i,m),(i,m')} = + 2 \lambda_2$ for $m \neq m'$  
+
+The full $Q$ is just these effects added together.  
+Every cell $Q_{u,v}$ tells you the “energy interaction” if variable $u$ and variable $v$ are both 1.
+
+---
+
+## From QUBO to the Ising Hamiltonian
+
+We convert  
+
+$$
+x_i \in \{0,1\} \;\rightarrow\; z_i \in \{-1,+1\}
+$$
+
+via  
+
+$$
+x_i = \frac{1 - z_i}{2}.
+$$
+
+Plugging that into $E(x)$ gives:
+
+$$
+E(z) = \text{constant} + \sum_i h_i z_i + \sum_{i<j} J_{i,j} z_i z_j.
+$$
+
+(this is the Ising Hamiltonian form!)  
+
+- $h_i$: linear coefficients and diagonal parts of $Q$  
+- $J_{i,j}$: entries in $Q$ (pairwise coupling)  
+
+---
+
+# Circuit Structure
+
+At a high level, the QAOA circuit alternates between:
+
+1. **Cost Hamiltonian layer:** applies problem-specific phase shifts based on your Ising Hamiltonian.  
+
+   $$
+   U_C(\gamma) = e^{-i \gamma H_C}
+   $$
+
+2. **Mixer Hamiltonian layer:** spreads amplitude across bitstrings so the system can explore other configurations.  
+
+   $$
+   U_M(\beta) = e^{-i \beta H_M}, \quad H_M = \sum_i X_i
+   $$
+
+A full QAOA circuit of depth $p$ is:
+
+$$
+|\psi(\gamma, \beta)\rangle
+=
+U_M(\beta_p) U_C(\gamma_p) \cdots
+U_M(\beta_1) U_C(\gamma_1)
+|+\rangle^{\otimes n}.
+$$
+
+(qubits represent binary decision variables $x_{i,m}$, one per job–machine pair.)
+
+Initial state is $|+\rangle^{\otimes n}$ (equal superposition).  
+
+Cost unitaries: controlled-phase gates implementing  
+
+- $e^{-i\gamma J_{i,j} Z_i Z_j}$ for coupling terms $J_{i,j}$, and  
+- single-qubit $e^{-i\gamma h_i Z_i}$ for local fields.  
+
+Mixing unitaries: single-qubit $R_x(2\beta)$ rotations implementing $e^{-i\beta X_i}$.  
+
+Measurements: All qubits measured in the Z basis to produce bitstrings corresponding to job assignments.
+
+---
+
+$$
+|\psi_0\rangle = |+\rangle^{\otimes n}
+= \frac{1}{\sqrt{2^n}} \sum_{x \in \{0,1\}^n} |x\rangle
+$$
+
+$$
+|\psi(\gamma,\beta)\rangle
+= U_M(\beta) U_C(\gamma) |\psi_0\rangle
+$$
+
+$$
+P(x) = |\langle x \mid \psi(\gamma,\beta)\rangle|^2
+$$
+
+$$
+(\gamma^*, \beta^*)
+=
+\arg\min_{\gamma,\beta}
+\langle \psi(\gamma,\beta) \mid H_C \mid \psi(\gamma,\beta)\rangle
+$$
+
