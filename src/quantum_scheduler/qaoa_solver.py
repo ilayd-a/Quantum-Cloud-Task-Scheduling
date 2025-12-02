@@ -11,14 +11,14 @@ from .utils.decoder import decode_binary_assignment
 
 def qubo_from_tasks(
     tasks,
-    balance_penalty: float = 1.0,
-    priority_bias: float = 0.25,
+    balance_penalty: float | None = None,
+    priority_bias: float = 1.0,
 ):
     """Proxy to the configurable QUBO builder to keep backwards compatibility."""
     return build_qubo(
         tasks,
-        balance_penalty=balance_penalty,
-        priority_bias=priority_bias,
+        penalty=balance_penalty,
+        priority_weight=priority_bias,
     )
 
 
@@ -143,8 +143,8 @@ def solve_qaoa_local(
     maxiter=30,
     shots=1024,
     final_shots=4096,
-    balance_penalty: float = 1.0,
-    priority_bias: float = 0.25,
+    balance_penalty: float | None = None,
+    priority_bias: float = 1.0,
 ):
     """
     Optimize a QAOA circuit locally on AerSimulator and return both the energy
