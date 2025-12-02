@@ -2,7 +2,6 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
-from qiskit_aer.primitives import SamplerV2
 from qiskit.circuit import Parameter
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit.primitives import BackendSamplerV2
@@ -126,8 +125,6 @@ def solve_qaoa_local(tasks, reps=1, maxiter=30):
     noise_model = NoiseModel()
     backend = AerSimulator(noise_model=noise_model)
 
-    # CORRECT QISKIT 2.2 SIGNATURE
-    from qiskit.primitives import BackendSamplerV2
     sampler = BackendSamplerV2(backend=backend)
 
     def objective(par):

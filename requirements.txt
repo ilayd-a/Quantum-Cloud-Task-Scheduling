@@ -1,0 +1,6 @@
+numpy>=1.23
+pandas>=2.0
+matplotlib>=3.8
+qiskit>=0.46
+qiskit-aer>=0.13
+qiskit-algorithms>=0.3
