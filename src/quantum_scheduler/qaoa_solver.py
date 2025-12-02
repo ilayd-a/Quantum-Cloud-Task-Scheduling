@@ -5,30 +5,25 @@ from qiskit_aer.noise import NoiseModel
 from qiskit.circuit import Parameter
 from qiskit_algorithms.optimizers import COBYLA
 
-
-# ---------------------------------------------------------
-# Convert simple tasks (job, p_i, w) → QUBO
-# ---------------------------------------------------------
-def qubo_from_tasks(tasks):
-    """
-    tasks = list of dicts: {"job":..., "p_i":..., "priority_w":...}
-    QUBO objective = sum_i w_i * p_i * x_i
-    """
-    n = len(tasks)
-    Q = np.zeros((n, n))
-
-    for i, t in enumerate(tasks):
-        p = float(t["p_i"])
-        w = float(t["priority_w"])
-        Q[i, i] = w * p
-
-    return Q
+from .utils import build_qubo
+from .utils.decoder import decode_binary_assignment
 
 
-# ---------------------------------------------------------
-# Convert QUBO → Ising (h, J)
-# ---------------------------------------------------------
+def qubo_from_tasks(
+    tasks,
+    balance_penalty: float = 1.0,
+    priority_bias: float = 0.25,
+):
+    """Proxy to the configurable QUBO builder to keep backwards compatibility."""
+    return build_qubo(
+        tasks,
+        balance_penalty=balance_penalty,
+        priority_bias=priority_bias,
+    )
+
+
 def qubo_to_ising(Q):
+    """Convert a QUBO matrix Q into Ising parameters (h, J)."""
     n = Q.shape[0]
     h = np.zeros(n)
     J = np.zeros((n, n))
@@ -42,25 +37,20 @@ def qubo_to_ising(Q):
     return h, J
 
 
-# ---------------------------------------------------------
-# Build QAOA circuit
-# ---------------------------------------------------------
 def qaoa_circuit(h, J, n, reps=1):
+    """Construct the parameterized QAOA circuit."""
     qc = QuantumCircuit(n)
 
     beta_params = [Parameter(f"beta_{k}") for k in range(reps)]
     gamma_params = [Parameter(f"gamma_{k}") for k in range(reps)]
 
-    # Initial Hadamards
     for i in range(n):
         qc.h(i)
 
-    # QAOA layers
     for k in range(reps):
         beta = beta_params[k]
         gamma = gamma_params[k]
 
-        # Cost Hamiltonian
         for i in range(n):
             qc.rz(2 * h[i] * gamma, i)
 
@@ -69,7 +59,6 @@ def qaoa_circuit(h, J, n, reps=1):
                 if abs(J[i, j]) > 1e-12:
                     qc.rzz(2 * J[i, j] * gamma, i, j)
 
-        # Mixer
         for i in range(n):
             qc.rx(2 * beta, i)
 
@@ -79,8 +68,17 @@ def qaoa_circuit(h, J, n, reps=1):
 
 def _bitstring_to_z(bitstring: str, n: int) -> np.ndarray:
     cleaned = bitstring.replace(" ", "")
-    bits = cleaned.zfill(n)[::-1]  # reverse to match Qiskit's little-endian convention
+    bits = cleaned.zfill(n)[::-1]
     return np.array([1 if b == "1" else -1 for b in bits], dtype=float)
+
+
+def _bitstring_energy(bitstring: str, h, J, n) -> float:
+    z = _bitstring_to_z(bitstring, n)
+    energy = float(np.dot(h, z))
+    for i in range(n):
+        for j in range(i + 1, n):
+            energy += J[i, j] * z[i] * z[j]
+    return energy
 
 
 def _counts_expectation(counts: dict[str, int], h, J, n) -> float:
@@ -90,20 +88,25 @@ def _counts_expectation(counts: dict[str, int], h, J, n) -> float:
 
     exp_val = 0.0
     for bitstring, freq in counts.items():
-        z = _bitstring_to_z(bitstring, n)
-        e = float(np.dot(h, z))
-        for i in range(n):
-            for j in range(i + 1, n):
-                e += J[i, j] * z[i] * z[j]
+        e = _bitstring_energy(bitstring, h, J, n)
         exp_val += e * (freq / total)
     return exp_val
 
 
-# ---------------------------------------------------------
-# Energy evaluation using AerSimulator counts
-# ---------------------------------------------------------
-def qaoa_energy(params, h, J, n, backend, qc, beta_params, gamma_params, shots=1024):
+def _select_best_bitstring(counts: dict[str, int], h, J, n):
+    best_bitstring = None
+    best_energy = float("inf")
 
+    for bitstring in counts:
+        e = _bitstring_energy(bitstring, h, J, n)
+        if e < best_energy:
+            best_energy = e
+            best_bitstring = bitstring
+
+    return best_bitstring, best_energy
+
+
+def _assign_parameters(params, beta_params, gamma_params):
     if len(params) != len(beta_params) + len(gamma_params):
         raise ValueError(
             "Parameter vector length does not match the requested number of QAOA layers."
@@ -117,22 +120,41 @@ def qaoa_energy(params, h, J, n, backend, qc, beta_params, gamma_params, shots=1
     for gamma in gamma_params:
         bind_dict[gamma] = params[offset]
         offset += 1
+    return bind_dict
 
-    bound = qc.assign_parameters(bind_dict)
-    result = backend.run(bound, shots=shots).result()
+
+def _sample_counts(bound_circuit, backend, shots):
+    result = backend.run(bound_circuit, shots=shots).result()
     counts = result.get_counts()
     if isinstance(counts, list):
         counts = counts[0]
+    return counts
 
+
+def qaoa_energy(params, h, J, n, backend, qc, beta_params, gamma_params, shots=1024):
+    bound = qc.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
+    counts = _sample_counts(bound, backend, shots)
     return _counts_expectation(counts, h, J, n)
 
 
-
-# ---------------------------------------------------------
-# Main local QAOA solver
-# ---------------------------------------------------------
-def solve_qaoa_local(tasks, reps=1, maxiter=30):
-    Q = qubo_from_tasks(tasks)
+def solve_qaoa_local(
+    tasks,
+    reps=1,
+    maxiter=30,
+    shots=1024,
+    final_shots=4096,
+    balance_penalty: float = 1.0,
+    priority_bias: float = 0.25,
+):
+    """
+    Optimize a QAOA circuit locally on AerSimulator and return both the energy
+    landscape and the best sampled schedule decoded from measurement counts.
+    """
+    Q = qubo_from_tasks(
+        tasks,
+        balance_penalty=balance_penalty,
+        priority_bias=priority_bias,
+    )
     h, J = qubo_to_ising(Q)
 
     print(f"Converted QUBO → Ising. Num qubits: {len(tasks)}")
@@ -140,15 +162,20 @@ def solve_qaoa_local(tasks, reps=1, maxiter=30):
     n = len(tasks)
     qc, beta_params, gamma_params = qaoa_circuit(h, J, n, reps)
 
-    # Local noisy Aer simulator
     noise_model = NoiseModel()
     backend = AerSimulator(noise_model=noise_model)
 
     def objective(par):
         return qaoa_energy(
-            par, h, J, n,
+            par,
+            h,
+            J,
+            n,
             backend,
-            qc, beta_params, gamma_params
+            qc,
+            beta_params,
+            gamma_params,
+            shots=shots,
         )
 
     optimizer = COBYLA(maxiter=maxiter)
@@ -158,7 +185,26 @@ def solve_qaoa_local(tasks, reps=1, maxiter=30):
     print("Running classical optimization...")
     res = optimizer.minimize(objective, params0)
 
+    best_params = res.x
+    bound = qc.assign_parameters(_assign_parameters(best_params, beta_params, gamma_params))
+    final_counts = _sample_counts(bound, backend, final_shots)
+    best_bitstring, best_sample_energy = _select_best_bitstring(final_counts, h, J, n)
+    if best_sample_energy is not None:
+        best_sample_energy = float(best_sample_energy)
+
+    schedule = None
+    if best_bitstring is not None:
+        schedule = decode_binary_assignment(best_bitstring, tasks)
+
     return {
         "energy": float(res.fun),
-        "optimal_params": res.x.tolist(),
+        "optimal_params": best_params.tolist(),
+        "best_bitstring": best_bitstring,
+        "best_sample_energy": best_sample_energy,
+        "counts": {k: int(v) for k, v in final_counts.items()},
+        "best_schedule": schedule,
+        "shots": shots,
+        "final_shots": final_shots,
+        "balance_penalty": balance_penalty,
+        "priority_bias": priority_bias,
     }

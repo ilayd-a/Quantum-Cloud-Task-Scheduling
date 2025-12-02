@@ -15,6 +15,9 @@ dependencies = [
     "qiskit>=0.46",
     "qiskit-aer>=0.13",
     "qiskit-algorithms>=0.3",
+    "PyYAML>=6.0",
+    "pulp>=2.7",
+    "tabulate>=0.9",
 ]
 
 [tool.setuptools]
