@@ -51,7 +51,7 @@ def qubo_to_ising(Q):
     return h, J
 
 
-def qaoa_circuit(h, J, n, reps=1):
+def qaoa_circuit(h, J, n, reps=1, measure=False):
     """Construct the parameterized QAOA circuit."""
     qc = QuantumCircuit(n)
 
@@ -76,7 +76,9 @@ def qaoa_circuit(h, J, n, reps=1):
         for i in range(n):
             qc.rx(2 * beta, i)
 
-    qc.measure_all()
+    if measure:
+        qc.measure_all()
+
     return qc, beta_params, gamma_params
 
 
@@ -206,7 +208,7 @@ def solve_qaoa_local(
 
     print(f"Converted QUBO → Ising. Num qubits: {num_qubits}")
 
-    qc, beta_params, gamma_params = qaoa_circuit(h, J, num_qubits, reps)
+    qc_base, beta_params, gamma_params = qaoa_circuit(h, J, num_qubits, reps, measure=False)
 
     backend_choice = (backend_type or "aer").lower()
     use_statevector = backend_choice == "statevector"
@@ -215,9 +217,11 @@ def solve_qaoa_local(
     else:
         noise_model = NoiseModel()
         backend = AerSimulator(noise_model=noise_model)
+        qc_meas = qc_base.copy()
+        qc_meas.measure_all()
 
     def eval_fn(params, _, __, ___):
-        bound = qc.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
+        bound = qc_base.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
         if use_statevector:
             from qiskit.quantum_info import Statevector
 
@@ -248,7 +252,7 @@ def solve_qaoa_local(
             best_res = res
 
     best_params = best_res.x if best_res is not None else params0
-    bound = qc.assign_parameters(_assign_parameters(best_params, beta_params, gamma_params))
+    bound = qc_base.assign_parameters(_assign_parameters(best_params, beta_params, gamma_params))
 
     if use_statevector:
         from qiskit.quantum_info import Statevector
@@ -257,7 +261,8 @@ def solve_qaoa_local(
         prob_dict = state.probabilities_dict()
         final_counts = _prob_dict_to_counts(prob_dict, final_shots)
     else:
-        final_counts = _sample_counts(bound, backend, final_shots)
+        measured = qc_meas.assign_parameters(_assign_parameters(best_params, beta_params, gamma_params))
+        final_counts = _sample_counts(measured, backend, final_shots)
 
     best_bitstring, best_sample_energy = _select_best_bitstring(final_counts, h, J, num_qubits)
     if best_sample_energy is not None:
