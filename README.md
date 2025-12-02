@@ -71,29 +71,26 @@ E(x) = x^T Q x + C^T x
 $$
 
 x: vector of binary variables $(x_1, x_2, \ldots, x_n)$  
-→ in our case this is the flattened vector of $x_{i,m}$ job–machine assignments  
+→ in our case this is the flattened vector of $x_{i,m}$ job-machine assignments  
 
 Q: symmetric matrix of quadratic coefficients  
 → captures pairwise interactions between binary variables  
-→ e.g. $Q_{i,j} x_i x_j$ could mean “if two jobs are on the same machine, add a penalty”  
 
 c: vector of linear coefficients  
-→ captures individual variable contributions (cost or bias for each assignment)  
-
-$E(x)$: total energy/cost to minimize  
+→ captures individual variable contributions  
 
 
 ---
 
 # Problem
 
-We want to assign a set of jobs  
+We want to assign a set of jobs:
 
 $$
 J = \{1, \ldots, n\}
 $$
 
-to a set of identical machines  
+to a set of identical machines:
 
 $$
 M = \{1, \ldots, M\}
@@ -101,32 +98,30 @@ $$
 
 so that:
 
-1. every job goes to exactly one machine,  
-2. all machines have similar total workloads,  
-3. optionally, total finish time (makespan) is small.  
+1. every job goes to exactly one machine  
+2. all machines have similar total workloads  
+3. optionally, makespan is small  
 
 
 ---
 
-We create
+# Decision Variables
 
 $$
 x_{i,m} =
 \begin{cases}
-1 & \text{if job } i \text{runs on machine } m \\
+1 & \text{if job } i \text{ runs on machine } m \\
 0 & \text{otherwise}
 \end{cases}
 $$
 
-These are the only unknowns the solver will decide.
-
-If each job $i$ has processing time $p_i$, the load on machine $m$ is:
+Load on machine $m$:
 
 $$
 L_m = \sum_i p_i x_{i,m}
 $$
 
-The ideal world is when every $L_m$ equals the average load:
+Ideal average load:
 
 $$
 \bar{L} = \frac{1}{M} \sum_i p_i
@@ -135,43 +130,33 @@ $$
 
 ---
 
-# Balanced Load Approximation
+# Balanced Load Term
 
 $$
-E_{\text{balance}} = \sum_m (L_m - \bar{L})^2 \approx \sum_m L_m^2
+E_{\text{balance}} = \sum_m (L_m - \bar{L})^2
 $$
 
-Plugging in $L_m = \sum_i p_i x_{i,m}$:
+Substituting:
 
 $$
-E_{\text{balance}} = \sum_m \left( \sum_i p_i x_{i,m} \right)^2
+E_{\text{balance}} =
+\sum_m \left( \sum_i p_i x_{i,m} \right)^2
 $$
-
-We scale this term by $\lambda_1$.
 
 
 ---
 
-# Assignment Constraint
-
-For every job $i$:
+# Assignment Constraint Term
 
 $$
-\sum_m x_{i,m} = 1
+E_{\text{assign}} =
+\sum_i \left( 1 - \sum_m x_{i,m} \right)^2
 $$
-
-Convert into a penalty:
-
-$$
-E_{\text{assign}} = \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
-$$
-
-This term is scaled by $\lambda_2$.
 
 
 ---
 
-# Total QUBO Energy
+# Full QUBO Objective
 
 $$
 E(x) =
@@ -180,117 +165,83 @@ E(x) =
 \lambda_2 \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
 $$
 
-Both terms are quadratic because $x_{i,m}^2 = x_{i,m}$.
 
-After expansion:
-
-$$
-E(x) = x^T Q x + c^T x + constant
-$$
-
-
----
-
-# Expanding the Structure
+Expanded generic form:
 
 $$
 E(x) =
 \sum_{i,j,m,m'} Q_{(i,m),(j,m')} x_{i,m} x_{j,m'}
-+ \sum_{i,m} c_{i,m} x_{i,m}
-+ constant
++
+\sum_{i,m} c_{i,m} x_{i,m}
 $$
-
-- each $(i,m)$ pair corresponds to one binary variable  
-- $Q$ captures variable interactions  
-- $c$ captures linear biases  
 
 
 ---
 
-# Building the Q Matrix
+# Q Matrix Structure
 
-## a) Machine-level blocks (from $\lambda_1$)
-
-Within each machine $m$:
-
-Diagonal:
-
-$$
-Q_{(i,m),(i,m)} = \lambda_1 p_i^2
-$$
-
-Off-diagonal (for $i \neq j$):
-
-$$
-Q_{(i,m),(j,m)} = 2 \lambda_1 p_i p_j
-$$
-
-## b) Job-level blocks (from $\lambda_2$)
-
-Within each job $i$:
-
-Diagonal:
+Diagonal (same job):
 
 $$
 Q_{(i,m),(i,m)} = -\lambda_2
 $$
 
-Off-diagonal (for $m \neq m'$):
+Off-diagonal (same job, different machines):
 
 $$
 Q_{(i,m),(i,m')} = 2\lambda_2
 $$
 
-The full matrix $Q$ is the combination of these blocks.
+Diagonal (same machine):
+
+$$
+Q_{(i,m),(i,m)} = \lambda_1 p_i^2
+$$
+
+Off-diagonal (same machine, different jobs):
+
+$$
+Q_{(i,m),(j,m)} = 2\lambda_1 p_i p_j
+$$
 
 
 ---
 
-# From QUBO to the Ising Hamiltonian
-
-We convert:
+# From QUBO to Ising Hamiltonian
 
 $$
 x_i \in \{0,1\} \rightarrow z_i \in \{-1,+1\}
 $$
 
-via:
-
 $$
 x_i = \frac{1 - z_i}{2}
 $$
 
-Plugging into $E(x)$ gives:
+Plug into $E(x)$:
 
 $$
-E(z) = constant + \sum_i h_i z_i + \sum_{i<j} J_{i,j} z_i z_j
+E(z) =
+constant +
+\sum_i h_i z_i +
+\sum_{i<j} J_{i,j} z_i z_j
 $$
-
-$h_i$ = linear coefficients  
-$J_{i,j}$ = coupling coefficients  
 
 
 ---
 
 # Circuit Structure
 
-At a high level, the QAOA circuit alternates between:
-
-
-## 1. Cost Hamiltonian layer
+## 1. Cost Hamiltonian
 
 $$
 U_C(\gamma) = e^{-i \gamma H_C}
 $$
 
-
-## 2. Mixer Hamiltonian layer
+## 2. Mixer Hamiltonian
 
 $$
 U_M(\beta) = e^{-i \beta H_M}
 $$
-
-where:
 
 $$
 H_M = \sum_i X_i
@@ -301,8 +252,6 @@ $$
 
 # Full QAOA Circuit
 
-A QAOA circuit of depth $p$ is:
-
 $$
 |\psi(\gamma,\beta)\rangle =
 U_M(\beta_p)
@@ -312,12 +261,6 @@ U_M(\beta_1)
 U_C(\gamma_1)
 |+\rangle^{\otimes n}
 $$
-
-- Qubits represent binary decision variables $x_{i,m}$  
-- Initial state is $|+\rangle^{\otimes n}$  
-- Cost unitaries implement $e^{-i\gamma J_{i,j} Z_i Z_j}$ and $e^{-i\gamma h_i Z_i}$  
-- Mixing unitaries implement $R_x(2\beta)$  
-- Measurements occur in the Z basis  
 
 
 ---
@@ -333,6 +276,8 @@ $$
 $$
 
 
+---
+
 # QAOA State
 
 $$
@@ -343,17 +288,28 @@ U_C(\gamma)
 $$
 
 
-# Probability of Measuring a Bitstring
+---
+
+# Probability of a Bitstring
 
 $$
-P(x) = |\langle x | \psi(\gamma,\beta)\rangle|^2
+P(x) =
+|\langle x | \psi(\gamma,\beta) \rangle|^2
 $$
 
+
+---
 
 # Optimal Parameters
 
 $$
 (\gamma^*, \beta^*) =
 \arg\min_{\gamma,\beta}
-\langle \psi(\gamma,\beta) | H_C | \psi(\gamma,\beta)\rangle
+\langle
+\psi(\gamma,\beta)
+|
+H_C
+|
+\psi(\gamma,\beta)
+\rangle
 $$
