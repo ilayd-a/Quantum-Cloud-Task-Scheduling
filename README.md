@@ -11,7 +11,8 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
 ├── scripts/
 │   ├── generate_datasets.py  # Deterministic synthetic workloads
 │   ├── run_experiments.py    # Single runs or config-driven sweeps
-│   └── analyze_results.py    # Markdown / LaTeX tables for publications
+│   ├── analyze_results.py    # Markdown / LaTeX tables for publications
+│   └── prove_advantage.py    # Turnkey script to showcase QAOA benefits
 └── src/quantum_scheduler/    # Package with QUBO builder, solvers, utilities
 ```
 
@@ -46,12 +47,20 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
    ```
    Emits `analysis/summary.md` + `analysis/summary.tex` ready for inclusion in the manuscript.
 
+6. **Demonstrate QAOA advantages**
+   ```bash
+   python scripts/prove_advantage.py
+   ```
+   Runs three preconfigured experiments (quality trap, search-efficiency, diversity) that contrast QAOA with greedy and brute-force classical methods.
+
 ## Core Components
 - `quantum_scheduler.utils.build_qubo`: Constructs a dense QUBO that penalizes load imbalance and rewards high-priority jobs on the designated primary machine.
 - `quantum_scheduler.qaoa_solver.solve_qaoa_local`: Runs AerSimulator-based QAOA, optimizes parameters via COBYLA, samples the final circuit, and decodes the most promising bitstring into a two-machine schedule with makespan metrics.
 - `quantum_scheduler.classical_solver.solve_classical`: Exact brute-force baseline (sufficient for ≤12 jobs) returning assignments, machine loads, and optimal makespans.
+- `quantum_scheduler.classical_solver.solve_greedy`: Lightweight heuristic assigning each task to the currently lightest machine (used to showcase QAOA’s quality advantage).
 - `scripts/run_experiments.py`: CLI with support for config sweeps, per-run metadata, and relative performance gap computation.
 - `scripts/analyze_results.py`: Converts JSON/CSV artifacts into publication-ready Markdown/LaTeX tables and prints summary statistics.
+- `scripts/prove_advantage.py`: Reproducible storytelling harness that runs the quality/efficiency/diversity tests contrasting QAOA with greedy/brute-force methods.
 
 ## Research Artefacts
 - `docs/report.md` – Abstract, problem statement, methodology, and reproducibility checklist.
