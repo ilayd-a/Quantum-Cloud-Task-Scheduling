@@ -66,250 +66,176 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
 With these additions, the repository satisfies the usual reproducibility requirements for quantum optimization workshops: sealed dependencies, deterministic data, declarative experiment configs, and scripted result synthesis.
 # The General QUBO Form
 
-$$
-E(x) = x^T Q x + C^T x
-$$
+**QUBO Objective:**  
+$E(x) = x^T Q x + C^T x$
 
-x: vector of binary variables $(x_1, x_2, \ldots, x_n)$  
-→ in our case this is the flattened vector of $x_{i,m}$ job-machine assignments  
-
-Q: symmetric matrix of quadratic coefficients  
-→ captures pairwise interactions between binary variables  
-
-c: vector of linear coefficients  
-→ captures individual variable contributions  
-
+- **x:** vector of binary variables $(x_1, x_2, \ldots, x_n)$  
+  → In our case, this is the flattened vector of $x_{i,m}$ job–machine assignments.  
+- **Q:** symmetric matrix of quadratic coefficients  
+  → Captures pairwise interactions between binary variables.  
+- **c:** vector of linear coefficients  
+  → Captures individual variable contributions (cost or bias).  
 
 ---
 
-# Problem
+# Problem Setup
 
-We want to assign a set of jobs:
+We have:
 
-$$
-J = \{1, \ldots, n\}
-$$
+**Jobs:**  
+$J = \{1, \ldots, n\}$  
 
-to a set of identical machines:
+**Machines:**  
+$M = \{1, \ldots, M\}$  
 
-$$
-M = \{1, \ldots, M\}
-$$
-
-so that:
-
-1. every job goes to exactly one machine  
-2. all machines have similar total workloads  
-3. optionally, makespan is small  
-
+Goals:
+1. Each job is assigned to exactly one machine.  
+2. All machines have similar workloads.  
+3. Optionally minimize makespan.
 
 ---
 
 # Decision Variables
 
-$$
-x_{i,m} =
-\begin{cases}
-1 & \text{if job } i \text{ runs on machine } m \\
-0 & \text{otherwise}
-\end{cases}
-$$
+**Binary assignment variable:**  
+$x_{i,m} = 1$ if job $i$ runs on machine $m$, else $0$.
 
-Load on machine $m$:
+**Machine load:**  
+$L_m = \sum_i p_i x_{i,m}$  
 
-$$
-L_m = \sum_i p_i x_{i,m}
-$$
-
-Ideal average load:
-
-$$
-\bar{L} = \frac{1}{M} \sum_i p_i
-$$
-
+**Average load:**  
+$\bar{L} = \frac{1}{M} \sum_i p_i$
 
 ---
 
-# Balanced Load Term
+# Balanced Load Penalty
 
-$$
-E_{\text{balance}} = \sum_m (L_m - \bar{L})^2
-$$
+**Balance term:**  
+$E_{\text{balance}} = \sum_m (L_m - \bar{L})^2$
 
-Substituting:
+After substituting $L_m = \sum_i p_i x_{i,m}$:
 
-$$
-E_{\text{balance}} =
-\sum_m \left( \sum_i p_i x_{i,m} \right)^2
-$$
+**Expanded balance term:**  
+$E_{\text{balance}} = \sum_m \left( \sum_i p_i x_{i,m} \right)^2$
 
+Scaled by $\lambda_1$.
 
 ---
 
-# Assignment Constraint Term
+# Assignment Constraint Penalty
 
-$$
-E_{\text{assign}} =
-\sum_i \left( 1 - \sum_m x_{i,m} \right)^2
-$$
+**One-hot assignment condition:**  
+$\sum_m x_{i,m} = 1$
 
+Convert to penalty:
 
----
+**Assignment penalty:**  
+$E_{\text{assign}} = \sum_i \left( 1 - \sum_m x_{i,m} \right)^2$
 
-# Full QUBO Objective
-
-$$
-E(x) =
-\lambda_1 \sum_m \left( \sum_i p_i x_{i,m} \right)^2
-+
-\lambda_2 \sum_i \left( 1 - \sum_m x_{i,m} \right)^2
-$$
-
-
-Expanded generic form:
-
-$$
-E(x) =
-\sum_{i,j,m,m'} Q_{(i,m),(j,m')} x_{i,m} x_{j,m'}
-+
-\sum_{i,m} c_{i,m} x_{i,m}
-$$
-
+Scaled by $\lambda_2$.
 
 ---
 
-# Q Matrix Structure
+# Full QUBO Energy
 
-Diagonal (same job):
+**Total energy:**  
+$E(x) = \lambda_1 \sum_m (\sum_i p_i x_{i,m})^2 + \lambda_2 \sum_i (1 - \sum_m x_{i,m})^2$
 
-$$
-Q_{(i,m),(i,m)} = -\lambda_2
-$$
+Generic quadratic form:
 
-Off-diagonal (same job, different machines):
+**General QUBO:**  
+$E(x) = x^T Q x + c^T x + \text{constant}$
 
-$$
-Q_{(i,m),(i,m')} = 2\lambda_2
-$$
+---
 
-Diagonal (same machine):
+# Q-Matrix Structure
 
-$$
-Q_{(i,m),(i,m)} = \lambda_1 p_i^2
-$$
+## Machine-level interactions (from $\lambda_1$)
 
-Off-diagonal (same machine, different jobs):
+**Diagonal:**  
+$Q_{(i,m),(i,m)} = \lambda_1 p_i^2$
 
-$$
-Q_{(i,m),(j,m)} = 2\lambda_1 p_i p_j
-$$
+**Off-diagonal (same machine, different jobs):**  
+$Q_{(i,m),(j,m)} = 2 \lambda_1 p_i p_j$
 
+---
+
+## Job-level interactions (from $\lambda_2$)
+
+**Diagonal:**  
+$Q_{(i,m),(i,m)} = -\lambda_2$
+
+**Off-diagonal (same job, different machines):**  
+$Q_{(i,m),(i,m')} = 2 \lambda_2$
 
 ---
 
 # From QUBO to Ising Hamiltonian
 
-$$
-x_i \in \{0,1\} \rightarrow z_i \in \{-1,+1\}
-$$
+**Binary–spin conversion:**  
+$x_i \in \{0,1\} \rightarrow z_i \in \{-1,+1\}$  
 
-$$
-x_i = \frac{1 - z_i}{2}
-$$
+**Mapping:**  
+$x_i = \frac{1 - z_i}{2}$
 
-Plug into $E(x)$:
+**Ising form:**  
+$E(z) = \text{constant} + \sum_i h_i z_i + \sum_{i<j} J_{i,j} z_i z_j$
 
-$$
-E(z) =
-constant +
-\sum_i h_i z_i +
-\sum_{i<j} J_{i,j} z_i z_j
-$$
-
+Where:
+- $h_i$ are linear coefficients  
+- $J_{i,j}$ are coupling strengths  
 
 ---
 
-# Circuit Structure
+# Circuit Structure (QAOA)
 
-## 1. Cost Hamiltonian
+## 1. Cost Hamiltonian Layer
 
-$$
-U_C(\gamma) = e^{-i \gamma H_C}
-$$
+**Cost unitary:**  
+$U_C(\gamma) = e^{-i \gamma H_C}$
 
-## 2. Mixer Hamiltonian
+## 2. Mixer Hamiltonian Layer
 
-$$
-U_M(\beta) = e^{-i \beta H_M}
-$$
+**Mixer unitary:**  
+$U_M(\beta) = e^{-i \beta H_M}$
 
-$$
-H_M = \sum_i X_i
-$$
-
+**Mixer Hamiltonian:**  
+$H_M = \sum_i X_i$
 
 ---
 
 # Full QAOA Circuit
 
-$$
-|\psi(\gamma,\beta)\rangle =
-U_M(\beta_p)
-U_C(\gamma_p)
-\cdots
-U_M(\beta_1)
-U_C(\gamma_1)
-|+\rangle^{\otimes n}
-$$
+**Circuit of depth $p$:**  
+$|\psi(\gamma,\beta)\rangle =  
+U_M(\beta_p) U_C(\gamma_p) \cdots U_M(\beta_1) U_C(\gamma_1) |+\rangle^{\otimes n}$
 
+Qubits represent binary decision variables $(x_{i,m})$.
 
 ---
 
-# Initial Superposition
+# Initial State
 
-$$
-|\psi_0\rangle =
-|+\rangle^{\otimes n}
-=
-\frac{1}{\sqrt{2^n}}
-\sum_{x \in \{0,1\}^n} |x\rangle
-$$
-
+**Initial superposition:**  
+$|\psi_0\rangle = |+\rangle^{\otimes n} = \frac{1}{\sqrt{2^n}} \sum_{x \in \{0,1\}^n} |x\rangle$
 
 ---
 
 # QAOA State
 
-$$
-|\psi(\gamma,\beta)\rangle =
-U_M(\beta)
-U_C(\gamma)
-|\psi_0\rangle
-$$
-
+**State after parameters $(\gamma,\beta)$:**  
+$|\psi(\gamma,\beta)\rangle = U_M(\beta) U_C(\gamma) |\psi_0\rangle$
 
 ---
 
-# Probability of a Bitstring
+# Measurement Probability
 
-$$
-P(x) =
-|\langle x | \psi(\gamma,\beta) \rangle|^2
-$$
-
+**Probability of observing bitstring $x$:**  
+$P(x) = |\langle x | \psi(\gamma,\beta)\rangle|^2$
 
 ---
 
 # Optimal Parameters
 
-$$
-(\gamma^*, \beta^*) =
-\arg\min_{\gamma,\beta}
-\langle
-\psi(\gamma,\beta)
-|
-H_C
-|
-\psi(\gamma,\beta)
-\rangle
-$$
+**Optimal angles:**  
+$(\gamma^*, \beta^*) = \arg\min_{\gamma,\beta} \langle \psi(\gamma,\beta) | H_C | \psi(\gamma,\beta) \rangle$
