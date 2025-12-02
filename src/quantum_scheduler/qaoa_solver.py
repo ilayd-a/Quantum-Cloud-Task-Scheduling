@@ -3,7 +3,7 @@ from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
 from qiskit.circuit import Parameter
-from qiskit_algorithms.optimizers import COBYLA
+from qiskit_algorithms.optimizers import COBYLA, SPSA
 
 from .utils import build_qubo
 from .utils.decoder import bitstring_to_vector, decode_solution_vector
@@ -145,10 +145,37 @@ def _sample_counts(bound_circuit, backend, shots):
     return counts
 
 
-def qaoa_energy(params, h, J, n, backend, qc, beta_params, gamma_params, shots=1024):
-    bound = qc.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
-    counts = _sample_counts(bound, backend, shots)
-    return _counts_expectation(counts, h, J, n)
+def _prob_dict_expectation(prob_dict, h, J, n):
+    energy = 0.0
+    for bitstring, prob in prob_dict.items():
+        energy += prob * _bitstring_energy(bitstring, h, J, n)
+    return energy
+
+
+def _prob_dict_to_counts(prob_dict, shots):
+    counts = {}
+    for bitstring, prob in prob_dict.items():
+        counts[bitstring] = int(round(prob * shots))
+    # ensure total counts == shots
+    diff = shots - sum(counts.values())
+    if diff > 0:
+        for bitstring in sorted(prob_dict, key=prob_dict.get, reverse=True):
+            counts[bitstring] += 1
+            diff -= 1
+            if diff == 0:
+                break
+    return counts
+
+
+def _build_optimizer(name: str, maxiter: int):
+    name = (name or "cobyla").lower()
+    if name == "spsa":
+        return SPSA(maxiter=maxiter)
+    return COBYLA(maxiter=maxiter)
+
+
+def qaoa_energy(params, h, J, n, eval_fn):
+    return eval_fn(params, h, J, n)
 
 
 def solve_qaoa_local(
@@ -159,6 +186,10 @@ def solve_qaoa_local(
     final_shots=4096,
     balance_penalty: float | None = None,
     priority_bias: float = 0.1,
+    optimizer: str = "cobyla",
+    restarts: int = 5,
+    backend_type: str = "aer",
+    seed: int | None = None,
 ):
     """
     Optimize a QAOA circuit locally on AerSimulator and return both the energy
@@ -177,32 +208,57 @@ def solve_qaoa_local(
 
     qc, beta_params, gamma_params = qaoa_circuit(h, J, num_qubits, reps)
 
-    noise_model = NoiseModel()
-    backend = AerSimulator(noise_model=noise_model)
+    backend_choice = (backend_type or "aer").lower()
+    use_statevector = backend_choice == "statevector"
+    if use_statevector:
+        backend = None
+    else:
+        noise_model = NoiseModel()
+        backend = AerSimulator(noise_model=noise_model)
 
-    def objective(par):
-        return qaoa_energy(
-            par,
-            h,
-            J,
-            num_qubits,
-            backend,
-            qc,
-            beta_params,
-            gamma_params,
-            shots=shots,
-        )
+    def eval_fn(params, _, __, ___):
+        bound = qc.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
+        if use_statevector:
+            from qiskit.quantum_info import Statevector
 
-    optimizer = COBYLA(maxiter=maxiter)
+            state = Statevector(bound)
+            prob_dict = state.probabilities_dict()
+            return _prob_dict_expectation(prob_dict, h, J, num_qubits)
+        counts = _sample_counts(bound, backend, shots)
+        return _counts_expectation(counts, h, J, num_qubits)
+
     num_params = len(beta_params) + len(gamma_params)
-    params0 = np.full(num_params, 0.5)
 
-    print("Running classical optimization...")
-    res = optimizer.minimize(objective, params0)
+    rng = np.random.default_rng(seed)
+    best_res = None
+    best_value = float("inf")
 
-    best_params = res.x
+    for r in range(max(restarts, 1)):
+        if num_params:
+            params0 = rng.uniform(0, 2 * np.pi, size=num_params)
+        else:
+            params0 = np.array([])
+        opt = _build_optimizer(optimizer, maxiter)
+
+        print(f"Running optimisation restart {r+1}/{max(restarts,1)} with {optimizer.upper()}...")
+        res = opt.minimize(lambda par: qaoa_energy(par, h, J, num_qubits, eval_fn), params0)
+
+        if res.fun < best_value:
+            best_value = res.fun
+            best_res = res
+
+    best_params = best_res.x if best_res is not None else params0
     bound = qc.assign_parameters(_assign_parameters(best_params, beta_params, gamma_params))
-    final_counts = _sample_counts(bound, backend, final_shots)
+
+    if use_statevector:
+        from qiskit.quantum_info import Statevector
+
+        state = Statevector(bound)
+        prob_dict = state.probabilities_dict()
+        final_counts = _prob_dict_to_counts(prob_dict, final_shots)
+    else:
+        final_counts = _sample_counts(bound, backend, final_shots)
+
     best_bitstring, best_sample_energy = _select_best_bitstring(final_counts, h, J, num_qubits)
     if best_sample_energy is not None:
         best_sample_energy = float(best_sample_energy)
@@ -214,7 +270,7 @@ def solve_qaoa_local(
         schedule = decode_solution_vector(vector, p)
 
     return {
-        "energy": float(res.fun),
+        "energy": float(best_value),
         "optimal_params": best_params.tolist(),
         "best_bitstring": best_bitstring,
         "best_sample_energy": best_sample_energy,
@@ -226,4 +282,7 @@ def solve_qaoa_local(
         "balance_penalty_actual": actual_penalty,
         "total_load": total_load,
         "priority_bias": priority_bias,
+        "optimizer": optimizer,
+        "restarts": restarts,
+        "backend": backend_choice,
     }
