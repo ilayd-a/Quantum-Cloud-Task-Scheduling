@@ -6,7 +6,7 @@ from qiskit.circuit import Parameter
 from qiskit_algorithms.optimizers import COBYLA
 
 from .utils import build_qubo
-from .utils.decoder import decode_binary_assignment
+from .utils.decoder import bitstring_to_vector, decode_solution_vector
 
 
 def _processing_times(tasks):
@@ -15,8 +15,11 @@ def _processing_times(tasks):
 
 def qubo_from_tasks(
     tasks,
+    machines: int,
     balance_penalty_multiplier: float | None = None,
-    priority_bias: float = 1.0,
+    balance_strength: float = 1.0,
+    priority_bias: float = 0.1,
+    machine_bias: np.ndarray | None = None,
 ):
     """
     Build the balanced-load QUBO and report the actual penalty strength used.
@@ -26,14 +29,18 @@ def qubo_from_tasks(
     proc = _processing_times(tasks)
     total_load = float(proc.sum())
     multiplier = balance_penalty_multiplier if balance_penalty_multiplier is not None else 10.0
-    actual_penalty = multiplier * total_load
+    actual_assignment_penalty = multiplier * total_load
+    balance_strength_actual = balance_strength * total_load
 
     Q = build_qubo(
         tasks,
-        penalty=actual_penalty,
+        machines=machines,
+        assignment_penalty=actual_assignment_penalty,
+        balance_strength=balance_strength_actual,
         priority_weight=priority_bias,
+        machine_bias=machine_bias,
     )
-    return Q, actual_penalty, multiplier, total_load
+    return Q, actual_assignment_penalty, multiplier, total_load, balance_strength_actual
 
 
 def qubo_to_ising(Q):
@@ -157,24 +164,31 @@ def solve_qaoa_local(
     maxiter=30,
     shots=1024,
     final_shots=4096,
+    machines: int = 2,
     balance_penalty: float | None = None,
-    priority_bias: float = 1.0,
+    balance_strength: float = 1.0,
+    priority_bias: float = 0.1,
+    machine_bias=None,
 ):
     """
     Optimize a QAOA circuit locally on AerSimulator and return both the energy
     landscape and the best sampled schedule decoded from measurement counts.
     """
-    Q, actual_penalty, penalty_multiplier, total_load = qubo_from_tasks(
+    Q, actual_penalty, penalty_multiplier, total_load, balance_strength_actual = qubo_from_tasks(
         tasks,
+        machines=machines,
         balance_penalty_multiplier=balance_penalty,
+        balance_strength=balance_strength,
         priority_bias=priority_bias,
+        machine_bias=machine_bias,
     )
     h, J = qubo_to_ising(Q)
 
-    print(f"Converted QUBO → Ising. Num qubits: {len(tasks)}")
+    num_qubits = len(tasks) * machines
 
-    n = len(tasks)
-    qc, beta_params, gamma_params = qaoa_circuit(h, J, n, reps)
+    print(f"Converted QUBO → Ising. Num qubits: {num_qubits}")
+
+    qc, beta_params, gamma_params = qaoa_circuit(h, J, num_qubits, reps)
 
     noise_model = NoiseModel()
     backend = AerSimulator(noise_model=noise_model)
@@ -184,7 +198,7 @@ def solve_qaoa_local(
             par,
             h,
             J,
-            n,
+            num_qubits,
             backend,
             qc,
             beta_params,
@@ -202,13 +216,15 @@ def solve_qaoa_local(
     best_params = res.x
     bound = qc.assign_parameters(_assign_parameters(best_params, beta_params, gamma_params))
     final_counts = _sample_counts(bound, backend, final_shots)
-    best_bitstring, best_sample_energy = _select_best_bitstring(final_counts, h, J, n)
+    best_bitstring, best_sample_energy = _select_best_bitstring(final_counts, h, J, num_qubits)
     if best_sample_energy is not None:
         best_sample_energy = float(best_sample_energy)
 
     schedule = None
     if best_bitstring is not None:
-        schedule = decode_binary_assignment(best_bitstring, tasks)
+        vector = bitstring_to_vector(best_bitstring, num_qubits)
+        p = [float(task["p_i"]) for task in tasks]
+        schedule = decode_solution_vector(vector, p, machines)
 
     return {
         "energy": float(res.fun),
@@ -221,6 +237,8 @@ def solve_qaoa_local(
         "final_shots": final_shots,
         "balance_penalty_multiplier": penalty_multiplier,
         "balance_penalty_actual": actual_penalty,
+        "balance_strength_actual": balance_strength_actual,
         "total_load": total_load,
         "priority_bias": priority_bias,
+        "machines": machines,
     }
