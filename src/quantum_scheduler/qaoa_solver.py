@@ -9,17 +9,31 @@ from .utils import build_qubo
 from .utils.decoder import decode_binary_assignment
 
 
+def _processing_times(tasks):
+    return np.array([float(task.get("p_i", task.get("p"))) for task in tasks], dtype=float)
+
+
 def qubo_from_tasks(
     tasks,
-    balance_penalty: float | None = None,
+    balance_penalty_multiplier: float | None = None,
     priority_bias: float = 1.0,
 ):
-    """Proxy to the configurable QUBO builder to keep backwards compatibility."""
-    return build_qubo(
+    """
+    Build the balanced-load QUBO and report the actual penalty strength used.
+
+    The multiplier is interpreted as A = multiplier * total_load, defaulting to 10.
+    """
+    proc = _processing_times(tasks)
+    total_load = float(proc.sum())
+    multiplier = balance_penalty_multiplier if balance_penalty_multiplier is not None else 10.0
+    actual_penalty = multiplier * total_load
+
+    Q = build_qubo(
         tasks,
-        penalty=balance_penalty,
+        penalty=actual_penalty,
         priority_weight=priority_bias,
     )
+    return Q, actual_penalty, multiplier, total_load
 
 
 def qubo_to_ising(Q):
@@ -150,9 +164,9 @@ def solve_qaoa_local(
     Optimize a QAOA circuit locally on AerSimulator and return both the energy
     landscape and the best sampled schedule decoded from measurement counts.
     """
-    Q = qubo_from_tasks(
+    Q, actual_penalty, penalty_multiplier, total_load = qubo_from_tasks(
         tasks,
-        balance_penalty=balance_penalty,
+        balance_penalty_multiplier=balance_penalty,
         priority_bias=priority_bias,
     )
     h, J = qubo_to_ising(Q)
@@ -205,6 +219,8 @@ def solve_qaoa_local(
         "best_schedule": schedule,
         "shots": shots,
         "final_shots": final_shots,
-        "balance_penalty": balance_penalty,
+        "balance_penalty_multiplier": penalty_multiplier,
+        "balance_penalty_actual": actual_penalty,
+        "total_load": total_load,
         "priority_bias": priority_bias,
     }
