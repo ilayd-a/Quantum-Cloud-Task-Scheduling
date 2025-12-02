@@ -25,11 +25,25 @@ def qubo_from_tasks(
     """
     proc = _processing_times(tasks)
     total_load = float(proc.sum())
+    if total_load <= 0:
+        raise ValueError("Total processing time must be positive.")
+    normalized_proc = proc / total_load
+
+    normalized_tasks = []
+    for task, p_norm in zip(tasks, normalized_proc):
+        normalized_tasks.append(
+            {
+                "job": task.get("job"),
+                "p_i": float(p_norm),
+                "priority_w": task.get("priority_w", 1.0),
+            }
+        )
+
     multiplier = balance_penalty_multiplier if balance_penalty_multiplier is not None else 10.0
-    actual_penalty = multiplier * total_load
+    actual_penalty = multiplier  # since normalized total load == 1.0
 
     Q = build_qubo(
-        tasks,
+        normalized_tasks,
         imbalance_penalty=actual_penalty,
         priority_weight=priority_bias,
     )
@@ -234,6 +248,21 @@ def solve_qaoa_local(
     num_params = len(beta_params) + len(gamma_params)
 
     rng = np.random.default_rng(seed)
+    eval_counter = {"count": 0}
+
+    def eval_fn(params, _, __, ___):
+        eval_counter["count"] += 1
+        bound = qc_base.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
+        if use_statevector:
+            from qiskit.quantum_info import Statevector
+
+            state = Statevector(bound)
+            prob_dict = state.probabilities_dict()
+            return _prob_dict_expectation(prob_dict, h, J, num_qubits)
+        measured = qc_meas.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
+        counts = _sample_counts(measured, backend, shots)
+        return _counts_expectation(counts, h, J, num_qubits)
+
     best_res = None
     best_value = float("inf")
 
@@ -274,6 +303,29 @@ def solve_qaoa_local(
         p = [float(task["p_i"]) for task in tasks]
         schedule = decode_solution_vector(vector, p)
 
+    energy_sorted = sorted(
+        final_counts.keys(),
+        key=lambda bit: _bitstring_energy(bit, h, J, num_qubits),
+    )
+    top_k = []
+    seen = set()
+    for bit in energy_sorted:
+        if bit in seen:
+            continue
+        seen.add(bit)
+        vector = bitstring_to_vector(bit, num_qubits)
+        schedule_info = decode_solution_vector(vector, [float(task["p_i"]) for task in tasks])
+        top_k.append(
+            {
+                "bitstring": bit,
+                "energy": _bitstring_energy(bit, h, J, num_qubits),
+                "makespan": schedule_info["makespan"],
+                "loads": schedule_info["loads"],
+            }
+        )
+        if len(top_k) == 3:
+            break
+
     return {
         "energy": float(best_value),
         "optimal_params": best_params.tolist(),
@@ -290,4 +342,6 @@ def solve_qaoa_local(
         "optimizer": optimizer,
         "restarts": restarts,
         "backend": backend_choice,
+        "evaluations": eval_counter["count"],
+        "top_solutions": top_k,
     }
