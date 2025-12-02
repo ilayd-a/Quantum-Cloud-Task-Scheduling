@@ -15,11 +15,8 @@ def _processing_times(tasks):
 
 def qubo_from_tasks(
     tasks,
-    machines: int,
     balance_penalty_multiplier: float | None = None,
-    balance_strength: float = 1.0,
     priority_bias: float = 0.1,
-    machine_bias: np.ndarray | None = None,
 ):
     """
     Build the balanced-load QUBO and report the actual penalty strength used.
@@ -29,18 +26,14 @@ def qubo_from_tasks(
     proc = _processing_times(tasks)
     total_load = float(proc.sum())
     multiplier = balance_penalty_multiplier if balance_penalty_multiplier is not None else 10.0
-    actual_assignment_penalty = multiplier * total_load
-    balance_strength_actual = balance_strength * total_load
+    actual_penalty = multiplier * total_load
 
     Q = build_qubo(
         tasks,
-        machines=machines,
-        assignment_penalty=actual_assignment_penalty,
-        balance_strength=balance_strength_actual,
+        imbalance_penalty=actual_penalty,
         priority_weight=priority_bias,
-        machine_bias=machine_bias,
     )
-    return Q, actual_assignment_penalty, multiplier, total_load, balance_strength_actual
+    return Q, actual_penalty, multiplier, total_load
 
 
 def qubo_to_ising(Q):
@@ -164,27 +157,21 @@ def solve_qaoa_local(
     maxiter=30,
     shots=1024,
     final_shots=4096,
-    machines: int = 2,
     balance_penalty: float | None = None,
-    balance_strength: float = 1.0,
     priority_bias: float = 0.1,
-    machine_bias=None,
 ):
     """
     Optimize a QAOA circuit locally on AerSimulator and return both the energy
     landscape and the best sampled schedule decoded from measurement counts.
     """
-    Q, actual_penalty, penalty_multiplier, total_load, balance_strength_actual = qubo_from_tasks(
+    Q, actual_penalty, penalty_multiplier, total_load = qubo_from_tasks(
         tasks,
-        machines=machines,
         balance_penalty_multiplier=balance_penalty,
-        balance_strength=balance_strength,
         priority_bias=priority_bias,
-        machine_bias=machine_bias,
     )
     h, J = qubo_to_ising(Q)
 
-    num_qubits = len(tasks) * machines
+    num_qubits = len(tasks)
 
     print(f"Converted QUBO → Ising. Num qubits: {num_qubits}")
 
@@ -224,7 +211,7 @@ def solve_qaoa_local(
     if best_bitstring is not None:
         vector = bitstring_to_vector(best_bitstring, num_qubits)
         p = [float(task["p_i"]) for task in tasks]
-        schedule = decode_solution_vector(vector, p, machines)
+        schedule = decode_solution_vector(vector, p)
 
     return {
         "energy": float(res.fun),
@@ -237,8 +224,6 @@ def solve_qaoa_local(
         "final_shots": final_shots,
         "balance_penalty_multiplier": penalty_multiplier,
         "balance_penalty_actual": actual_penalty,
-        "balance_strength_actual": balance_strength_actual,
         "total_load": total_load,
         "priority_bias": priority_bias,
-        "machines": machines,
     }
