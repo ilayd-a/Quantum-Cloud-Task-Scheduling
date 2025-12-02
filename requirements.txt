@@ -4,3 +4,6 @@ matplotlib>=3.8
 qiskit>=0.46
 qiskit-aer>=0.13
 qiskit-algorithms>=0.3
+PyYAML>=6.0
+pulp>=2.7
+tabulate>=0.9

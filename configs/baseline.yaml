@@ -1,0 +1,19 @@
+description: "Default sweep across bundled datasets for the QAOA vs classical study."
+output_csv: results/baseline_summary.csv
+experiments:
+  - dataset: dataset_5.csv
+    reps: 1
+    maxiter: 40
+    final_shots: 4096
+  - dataset: dataset_8.csv
+    reps: 1
+    maxiter: 60
+    final_shots: 4096
+  - dataset: dataset_10.csv
+    reps: 2
+    maxiter: 80
+    final_shots: 8192
+  - dataset: dataset_12.csv
+    reps: 2
+    maxiter: 120
+    final_shots: 8192
