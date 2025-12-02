@@ -2,27 +2,28 @@ import numpy as np
 from typing import Sequence
 
 
-def decode_solution_vector(x: Sequence[float], p: Sequence[int], machines: int):
+def decode_solution_vector(x: Sequence[float], p: Sequence[int]):
     """
-    Decode a flattened assignment vector (length = n * machines) into an
-    assignment list, per-machine loads, and makespan. Each job is assigned to
-    the machine with the maximum indicator in its one-hot block.
+    Decode a binary assignment vector (length = number of tasks) into machine
+    loads for the 2-machine case. x_i = 1 means machine 1, otherwise machine 0.
     """
     n = len(p)
-    x = np.asarray(x).reshape(n, machines)
+    if len(x) != n:
+        raise ValueError("Assignment vector length must match number of tasks.")
 
+    x = np.asarray(x).round()
+    loads = [0.0, 0.0]
     assignments = []
-    loads = np.zeros(machines, dtype=float)
 
-    for i in range(n):
-        m = int(np.argmax(x[i]))
-        assignments.append(m)
-        loads[m] += p[i]
+    for task_idx, machine_bit in enumerate(x):
+        machine = int(machine_bit)
+        assignments.append(machine)
+        loads[machine] += p[task_idx]
 
     return {
         "assignment": assignments,
-        "loads": loads.tolist(),
-        "makespan": float(loads.max()),
+        "loads": loads,
+        "makespan": max(loads),
     }
 
 
