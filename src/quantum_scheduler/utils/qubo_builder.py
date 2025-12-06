@@ -25,7 +25,8 @@ def build_qubo(
     Q = np.zeros((n, n))
 
     for i in range(n):
-        Q[i, i] = 4 * A * proc[i] ** 2 - 4 * A * total_load * proc[i] + B * weights[i] * proc[i]
+        # Negative sign rewards sending high-priority jobs to machine 1 (x_i=1 lowers energy).
+        Q[i, i] = 4 * A * proc[i] ** 2 - 4 * A * total_load * proc[i] - B * weights[i] * proc[i]
         for j in range(i + 1, n):
             coupling = 8 * A * proc[i] * proc[j]
             Q[i, j] = coupling

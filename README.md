@@ -245,6 +245,8 @@ $$
 Q_{(i,m),(i,m)} = \lambda_1 p_i^2
 $$
 
+Because the variables are binary (\(x^2 = x\)), these diagonal entries ultimately act as the linear coefficients \(c_{i,m} = \lambda_1 p_i^2\) in \(c^T x\), even though we place them on the diagonal of \(Q\) for compactness.
+
 Off-diagonal (within same machine):
 
 $$
@@ -261,13 +263,15 @@ $$
 Q_{(i,m),(i,m)} = -\lambda_2
 $$
 
+Again, due to \(x_{i,m}^2 = x_{i,m}\), this diagonal term corresponds to the linear bias \(c_{i,m} = -\lambda_2\).
+
 Off-diagonal (within same job):
 
 $$
 Q_{(i,m),(i,m')} = 2 \lambda_2
 $$
 
-The full Q matrix is the sum of these effects.
+The full Q matrix is the sum of these effects (with the understanding that diagonal entries double as the linear coefficient vector).
 
 ---
 
