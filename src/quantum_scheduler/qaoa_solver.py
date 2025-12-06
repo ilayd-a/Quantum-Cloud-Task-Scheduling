@@ -5,49 +5,8 @@ from qiskit_aer.noise import NoiseModel
 from qiskit.circuit import Parameter
 from qiskit_algorithms.optimizers import COBYLA, SPSA
 
-from .utils import build_qubo
+from .utils import qubo_from_tasks
 from .utils.decoder import bitstring_to_vector, decode_solution_vector
-
-
-def _processing_times(tasks):
-    return np.array([float(task.get("p_i", task.get("p"))) for task in tasks], dtype=float)
-
-
-def qubo_from_tasks(
-    tasks,
-    balance_penalty_multiplier: float | None = None,
-    priority_bias: float = 0.1,
-):
-    """
-    Build the balanced-load QUBO and report the actual penalty strength used.
-
-    The multiplier is interpreted as A = multiplier * total_load, defaulting to 10.
-    """
-    proc = _processing_times(tasks)
-    total_load = float(proc.sum())
-    if total_load <= 0:
-        raise ValueError("Total processing time must be positive.")
-    normalized_proc = proc / total_load
-
-    normalized_tasks = []
-    for task, p_norm in zip(tasks, normalized_proc):
-        normalized_tasks.append(
-            {
-                "job": task.get("job"),
-                "p_i": float(p_norm),
-                "priority_w": task.get("priority_w", 1.0),
-            }
-        )
-
-    multiplier = balance_penalty_multiplier if balance_penalty_multiplier is not None else 10.0
-    actual_penalty = multiplier  # since normalized total load == 1.0
-
-    Q = build_qubo(
-        normalized_tasks,
-        imbalance_penalty=actual_penalty,
-        priority_weight=priority_bias,
-    )
-    return Q, actual_penalty, multiplier, total_load
 
 
 def qubo_to_ising(Q):
@@ -234,21 +193,12 @@ def solve_qaoa_local(
         qc_meas = qc_base.copy()
         qc_meas.measure_all()
 
-    def eval_fn(params, _, __, ___):
-        bound = qc_base.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
-        if use_statevector:
-            from qiskit.quantum_info import Statevector
-
-            state = Statevector(bound)
-            prob_dict = state.probabilities_dict()
-            return _prob_dict_expectation(prob_dict, h, J, num_qubits)
-        counts = _sample_counts(bound, backend, shots)
-        return _counts_expectation(counts, h, J, num_qubits)
-
     num_params = len(beta_params) + len(gamma_params)
 
     rng = np.random.default_rng(seed)
     eval_counter = {"count": 0}
+    energy_trace: list[dict[str, float | int]] = []
+    current_restart = {"value": 1}
 
     def eval_fn(params, _, __, ___):
         eval_counter["count"] += 1
@@ -258,15 +208,26 @@ def solve_qaoa_local(
 
             state = Statevector(bound)
             prob_dict = state.probabilities_dict()
-            return _prob_dict_expectation(prob_dict, h, J, num_qubits)
-        measured = qc_meas.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
-        counts = _sample_counts(measured, backend, shots)
-        return _counts_expectation(counts, h, J, num_qubits)
+            value = _prob_dict_expectation(prob_dict, h, J, num_qubits)
+        else:
+            measured = qc_meas.assign_parameters(_assign_parameters(params, beta_params, gamma_params))
+            counts = _sample_counts(measured, backend, shots)
+            value = _counts_expectation(counts, h, J, num_qubits)
+
+        energy_trace.append(
+            {
+                "restart": current_restart["value"],
+                "evaluation": eval_counter["count"],
+                "energy": float(value),
+            }
+        )
+        return value
 
     best_res = None
     best_value = float("inf")
 
     for r in range(max(restarts, 1)):
+        current_restart["value"] = r + 1
         if num_params:
             params0 = rng.uniform(0, 2 * np.pi, size=num_params)
         else:
@@ -343,5 +304,6 @@ def solve_qaoa_local(
         "restarts": restarts,
         "backend": backend_choice,
         "evaluations": eval_counter["count"],
+        "energy_trace": energy_trace,
         "top_solutions": top_k,
     }
