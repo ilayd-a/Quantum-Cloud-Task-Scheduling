@@ -3,7 +3,7 @@
 from .dataset_generator import generate_dataset
 from .dataset_loader import load_tasks
 from .decoder import decode_solution_vector, bitstring_to_vector
-from .qubo_builder import build_qubo
+from .qubo_builder import build_qubo, qubo_from_tasks
 
 __all__ = [
     "generate_dataset",
@@ -11,4 +11,5 @@ __all__ = [
     "decode_solution_vector",
     "bitstring_to_vector",
     "build_qubo",
+    "qubo_from_tasks",
 ]

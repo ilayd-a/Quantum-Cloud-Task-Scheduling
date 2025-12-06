@@ -53,6 +53,23 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
    ```
    Runs three preconfigured experiments (quality trap, search-efficiency, diversity) that contrast QAOA with greedy and brute-force classical methods.
 
+7. **Generate diagnostic plots**
+   ```bash
+   python scripts/plot_results.py --results-dir results --plots-dir results/plots
+   ```
+   Produces a full visualization suite per dataset:
+   - QUBO landscape line plot (energy spread of sampled bitstrings)
+   - Optimizer convergence curves (energy vs. evaluation)
+   - Makespan comparison bar chart (QAOA vs. classical baselines)
+   - Sample distribution histogram (top measured bitstrings)
+   - Heatmap of QUBO coefficients (structure of the quadratic form)
+
+8. **Run the tests**
+   ```bash
+   pytest
+   ```
+   Exercises the plotting helpers to ensure regressions are caught early.
+
 ## Core Components
 - `quantum_scheduler.utils.build_qubo`: Constructs a dense QUBO that penalizes load imbalance and rewards high-priority jobs on the designated primary machine.
 - `quantum_scheduler.qaoa_solver.solve_qaoa_local`: Runs AerSimulator-based QAOA, optimizes parameters via COBYLA, samples the final circuit, and decodes the most promising bitstring into a two-machine schedule with makespan metrics.
