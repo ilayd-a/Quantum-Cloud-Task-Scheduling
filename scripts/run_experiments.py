@@ -52,10 +52,10 @@ def resolve_dataset_path(dataset_arg: str | Path) -> Path:
 def build_output_path(dataset_path: Path, args: argparse.Namespace) -> Path:
     if args.output:
         return Path(args.output)
-    suffix = f"_r{args.reps}_shots{args.final_shots}"
+    suffix = f"_r{args.reps}_shots{args.final_shots}_results"
     if args.tag:
         suffix += f"_{args.tag}"
-    return ROOT / "results" / f"{dataset_path.stem}{suffix}.json"
+    return ROOT / "results" / f"{dataset_path.stem}{suffix}_results.json"
 
 
 def run_single_experiment(args: argparse.Namespace, dataset_override: str | Path | None = None, output_override: str | Path | None = None) -> Dict[str, Any]:
