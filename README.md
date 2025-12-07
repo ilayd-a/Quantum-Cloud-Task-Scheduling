@@ -64,7 +64,13 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
    - Sample distribution histogram (top measured bitstrings)
    - Heatmap of QUBO coefficients (structure of the quadratic form)
 
-8. **Run the tests**
+8. **Render the QAOA circuit diagram**
+   ```bash
+   python scripts/render_circuit_diagram.py --dataset dataset_10.csv --reps 2 --measure
+   ```
+   Saves a publication-ready circuit figure to `results/circuit_diagrams/dataset_10_p2.png` (use `--drawer text` for ASCII output).
+
+9. **Run the tests**
    ```bash
    pytest
    ```
