@@ -37,5 +37,3 @@ Running `python scripts/run_experiments.py --config configs/baseline.yaml` yield
 1. Extend the ILP baseline to larger job counts (leveraging PuLP/Gurobi).
 2. Deploy to cloud simulators (IonQ, Rigetti) to capture hardware-specific noise.
 3. Integrate bitstring post-processing to construct full machine schedules beyond the two-machine partition abstraction.
-
-This document, paired with the updated codebase, should meet the methodological transparency and reproducibility requirements for quantum optimization workshops and related conferences.
