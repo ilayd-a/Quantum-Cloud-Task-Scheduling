@@ -26,16 +26,23 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
    ```
 2. **Datasets (deterministic seeds)**
    ```bash
-   python scripts/generate_datasets.py --sizes 5 8 10 12 --seed 123
+   python scripts/generate_datasets.py --sizes 10 20 25 --seed 123
    ```
-   This repopulates `data/datasets/` with CSVs keyed by job count.
+   This repopulates `data/datasets/` with CSVs keyed by job count. Larger datasets (≥20 tasks) use ILP classical solver since brute force becomes too slow.
 3. **Single experiment**
    ```bash
    python scripts/run_experiments.py \
      --dataset dataset_10.csv --reps 2 --maxiter 80 \
-     --balance-penalty 1.2 --priority-bias 0.4 --tag demo
+     --balance-penalty 10.0 --makespan-penalty 30.0 --priority-bias 0.1 --tag demo
    ```
    Produces `results/dataset_10_r2_shots4096_demo.json` containing QAOA energies, decoded schedules, and classical baselines.
+   
+   **Important QUBO Parameters:**
+   - `--balance-penalty`: Weight for load imbalance penalty (default: 10.0)
+   - `--makespan-penalty`: Weight for direct makespan penalty (default: 2× balance_penalty)
+     - Higher values (30-50) better align QUBO with makespan minimization
+   - `--priority-bias`: Weight for priority term (default: 0.1)
+     - Set to 0.0 to focus purely on makespan minimization
 4. **Batch sweep (recommended for papers)**
    ```bash
    python scripts/run_experiments.py --config configs/baseline.yaml
@@ -90,9 +97,97 @@ A research-grade sandbox for studying the two-machine load-balancing problem wit
 - `configs/baseline.yaml` – Default sweep referenced in the report.
 - `analysis/summary.md|tex` – Auto-generated once analysis script is executed.
 
+## Statistical Analysis
+
+For confidence intervals and statistical tests:
+
+```bash
+# Run multiple independent experiments
+python scripts/run_experiments.py --config configs/statistical_baseline.yaml
+
+# Generate statistical analysis report
+python scripts/statistical_analysis.py --results-dir results
+```
+
+This will produce:
+- Multiple independent runs per configuration (default: 10 runs)
+- Statistical summaries with mean, std, confidence intervals
+- Approximation ratio analysis
+- Normality tests and descriptive statistics
+
+## QUBO Validation and Tuning
+
+**⚠️ Important:** Before running full experiments, validate that your QUBO formulation properly aligns with makespan minimization:
+
+```bash
+# Validate QUBO formulation (check energy-makespan correlation)
+python scripts/validate_qubo.py --dataset data/datasets/dataset_10.csv
+
+# Test with different penalty weights
+python scripts/validate_qubo.py --dataset data/datasets/dataset_10.csv \
+    --balance-penalty 10.0 --makespan-penalty 30.0
+
+# Target: correlation > 0.7 (strong positive correlation)
+```
+
+If correlation is low (< 0.5), the QUBO is not properly encoding makespan minimization. See `docs/CRITICAL_ISSUE_QUBO.md` for details.
+
+## Advanced Analyses
+
+### Instance Family Analysis
+
+Show QAOA behavior across different instance types (uniform, heavy-tailed, clustered):
+
+```bash
+# Generate instance families (n=20)
+python scripts/generate_instance_families.py --size 20 --num-instances 3
+
+# Run experiments
+python scripts/run_experiments.py --config configs/instance_families.yaml
+
+# Analyze results
+python scripts/analyze_instance_families.py --input-csv results/instance_families_summary.csv
+```
+
+### Correlation Scaling Analysis
+
+Quantify QUBO energy-makespan correlation across problem sizes:
+
+```bash
+python scripts/analyze_correlation_scaling.py --sizes 10 20 25 --num-samples 2000
+```
+
+Outputs: Pearson/Spearman correlations, top-k overlap metrics.
+
+### Ablation Study
+
+Test impact of QUBO components (penalty weights, balance terms, circuit depth):
+
+```bash
+# Run ablation experiments
+python scripts/run_experiments.py --config configs/ablation_study.yaml
+
+# Analyze results
+python scripts/analyze_ablation.py --input-csv results/ablation_study_summary.csv
+```
+
+## Classical Solvers
+
+The framework now includes three classical baseline methods:
+
+1. **Brute Force** (optimal for $n \leq 12$): Exhaustive enumeration
+2. **ILP Solver** (PuLP-based): Integer linear programming formulation
+3. **Greedy Heuristic**: Fast greedy assignment
+
+Choose solver via `--classical-method` flag:
+```bash
+python scripts/run_experiments.py --dataset dataset_10.csv --classical-method ilp
+```
+
 ## Notes & Roadmap
 - The current QUBO/decoder targets the two-machine partitioning variant; extending to `M>2` is a planned upgrade.
-- PuLP is pinned to enable ILP baselines (scaffolding already exists in `quantum_scheduler/classical_solver.py`).
+- ILP solver available via PuLP for larger instances
+- Statistical analysis tools for publication-quality results
 - For hardware validation, swap `AerSimulator` with provider-specific backends or noise models inside `solve_qaoa_local`.
 
 With these additions, the repository satisfies the usual reproducibility requirements for quantum optimization workshops: sealed dependencies, deterministic data, declarative experiment configs, and scripted result synthesis.

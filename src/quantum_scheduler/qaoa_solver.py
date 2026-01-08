@@ -161,6 +161,7 @@ def solve_qaoa_local(
     final_shots=4096,
     balance_penalty: float | None = None,
     priority_bias: float = 0.1,
+    makespan_penalty: float | None = None,
     optimizer: str = "cobyla",
     restarts: int = 5,
     backend_type: str = "aer",
@@ -174,6 +175,7 @@ def solve_qaoa_local(
         tasks,
         balance_penalty_multiplier=balance_penalty,
         priority_bias=priority_bias,
+        makespan_penalty_multiplier=makespan_penalty,
     )
     h, J = qubo_to_ising(Q)
 

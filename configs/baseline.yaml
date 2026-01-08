@@ -1,19 +1,21 @@
-description: "Default sweep across bundled datasets for the QAOA vs classical study."
+description: "Default sweep across datasets (10, 20, 25 tasks) for QAOA vs classical study."
 output_csv: results/baseline_summary.csv
 experiments:
-  - dataset: dataset_5.csv
-    reps: 1
-    maxiter: 40
-    final_shots: 4096
-  - dataset: dataset_8.csv
-    reps: 1
-    maxiter: 60
-    final_shots: 4096
   - dataset: dataset_10.csv
     reps: 2
     maxiter: 80
     final_shots: 8192
-  - dataset: dataset_12.csv
-    reps: 2
+    makespan_penalty: 30.0
+    classical_method: brute_force  # Still fast for n=10
+  - dataset: dataset_20.csv
+    reps: 3  # Deeper circuit for larger problems
     maxiter: 120
     final_shots: 8192
+    makespan_penalty: 40.0
+    classical_method: ilp  # Use ILP for larger instances
+  - dataset: dataset_25.csv
+    reps: 3
+    maxiter: 150
+    final_shots: 8192
+    makespan_penalty: 50.0  # Higher penalty for larger problems
+    classical_method: ilp

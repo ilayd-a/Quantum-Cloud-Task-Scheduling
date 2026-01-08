@@ -5,11 +5,25 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f37a7d72-2aec-49c3-a738-77f4176e04c0" name="Changes" comment="works i think">
+      <change beforePath="$PROJECT_DIR$/.idea/CloudTaskScheduling.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/CloudTaskScheduling.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/baseline.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/configs/baseline.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/datasets/dataset_10.csv" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/data/datasets/dataset_12.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/datasets/dataset_2.csv" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/data/datasets/dataset_5.csv" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/data/datasets/dataset_8.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/generate_datasets.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/generate_datasets.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/run_experiments.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run_experiments.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/quantum_scheduler/classical_solver.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/quantum_scheduler/classical_solver.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/quantum_scheduler/qaoa_solver.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/quantum_scheduler/qaoa_solver.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/quantum_scheduler/utils/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/quantum_scheduler/utils/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/quantum_scheduler/utils/dataset_generator.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/quantum_scheduler/utils/dataset_generator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/quantum_scheduler/utils/qubo_builder.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/quantum_scheduler/utils/qubo_builder.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -51,6 +65,7 @@
   "keyToString": {
     "Python.classical_analysis.executor": "Run",
     "Python.generate_all_datasets.executor": "Run",
+    "Python.python scripts/generate_datasets.py --sizes 5 8 10 12 --seed 123.executor": "Run",
     "Python.qaoa.executor": "Run",
     "Python.qaoa_solver.executor": "Run",
     "Python.render_circuit_diagram.executor": "Run",
@@ -64,6 +79,7 @@
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "vcs.Git",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -71,6 +87,41 @@
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
     </key>
+  </component>
+  <component name="RunAnythingCache">
+    <option name="myCommands">
+      <command value="pip install -e ." />
+    </option>
+  </component>
+  <component name="RunManager">
+    <configuration name="python scripts/generate_datasets.py --sizes 5 8 10 12 --seed 123" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="CloudTaskScheduling" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="scripts/generate_datasets.py" />
+      <option name="PARAMETERS" value="--sizes 5 8 10 12 --seed 123" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.python scripts/generate_datasets.py --sizes 5 8 10 12 --seed 123" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -92,6 +143,8 @@
       <workItem from="1761020491694" duration="6990000" />
       <workItem from="1764013908988" duration="54410000" />
       <workItem from="1764976940864" duration="10430000" />
+      <workItem from="1765312962855" duration="588000" />
+      <workItem from="1767563390248" duration="27308000" />
     </task>
     <task id="LOCAL-00001" summary="data">
       <option name="closed" value="true" />
@@ -134,6 +187,7 @@
     <SUITE FILE_PATH="coverage/CloudTaskScheduling$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1764304636868" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/CloudTaskScheduling$generate_all_datasets.coverage" NAME="generate_all_datasets Coverage Results" MODIFIED="1764021032594" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/CloudTaskScheduling$qaoa.coverage" NAME="qaoa Coverage Results" MODIFIED="1764018793013" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/CloudTaskScheduling$python_scripts_generate_datasets_py___sizes_5_8_10_12___seed_123.coverage" NAME="python scripts/generate_datasets.py --sizes 5 8 10 12 --seed 123 Coverage Results" MODIFIED="1767878056041" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/CloudTaskScheduling$qaoa_solver.coverage" NAME="qaoa_solver Coverage Results" MODIFIED="1764303463400" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
