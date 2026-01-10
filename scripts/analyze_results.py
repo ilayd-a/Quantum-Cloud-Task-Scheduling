@@ -34,8 +34,12 @@ def load_json_results(results_dir: Path) -> pd.DataFrame:
                 "reps": data.get("config", {}).get("reps"),
                 "shots": data.get("config", {}).get("final_shots"),
                 "qaoa_makespan": metrics.get("qaoa_makespan"),
+                "min_makespan_in_samples": metrics.get("min_makespan_in_samples"),
                 "classical_makespan": metrics.get("classical_makespan"),
                 "relative_gap_pct": metrics.get("relative_gap_pct"),
+                "best_sample_gap_pct": metrics.get("best_sample_gap_pct"),
+                "classical_method": data.get("classical_method", "brute_force"),
+                "makespan_penalty": data.get("config", {}).get("makespan_penalty_multiplier"),
                 "path": str(path),
             }
         )

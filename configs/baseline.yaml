@@ -7,6 +7,13 @@ experiments:
     final_shots: 8192
     makespan_penalty: 30.0
     classical_method: brute_force  # Still fast for n=10
+    # Also run with LPT for comparison
+  - dataset: dataset_10.csv
+    reps: 2
+    maxiter: 80
+    final_shots: 8192
+    makespan_penalty: 30.0
+    classical_method: lpt  # LPT baseline
   - dataset: dataset_20.csv
     reps: 3  # Deeper circuit for larger problems
     maxiter: 120

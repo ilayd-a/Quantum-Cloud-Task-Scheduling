@@ -58,6 +58,35 @@ def solve_greedy(p: Sequence[int], M: int = 2):
     }
 
 
+def solve_lpt(p: Sequence[int], M: int = 2):
+    """
+    Longest Processing Time first (LPT) heuristic.
+    
+    Sort jobs in descending order by processing time, then assign each to the
+    machine with the lowest current load. This is a standard scheduling heuristic
+    with good approximation guarantees.
+    """
+    # Sort jobs by processing time (descending) with original indices
+    indexed_p = list(enumerate(p))
+    indexed_p.sort(key=lambda x: x[1], reverse=True)
+    
+    loads = [0] * M
+    assignment = [0] * len(p)
+    
+    for original_idx, duration in indexed_p:
+        # Assign to machine with lowest load
+        machine = min(range(M), key=lambda m: loads[m])
+        loads[machine] += duration
+        assignment[original_idx] = machine
+    
+    return {
+        "assignment": assignment,
+        "loads": loads,
+        "makespan": max(loads),
+        "method": "lpt",
+    }
+
+
 def solve_ilp(p: Sequence[int], M: int = 2, solver: str | None = None):
     """
     Integer Linear Programming formulation for the makespan minimization problem.

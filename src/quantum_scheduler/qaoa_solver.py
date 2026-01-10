@@ -10,13 +10,34 @@ from .utils.decoder import bitstring_to_vector, decode_solution_vector
 
 
 def qubo_to_ising(Q):
-    """Convert a QUBO matrix Q into Ising parameters (h, J)."""
+    """
+    Convert a QUBO matrix Q into Ising parameters (h, J).
+    
+    Correct transformation: x_i = (1 - z_i)/2 where x ∈ {0,1}, z ∈ {-1,+1}
+    
+    For QUBO: E = sum_i Q_ii x_i + sum_{i<j} Q_ij x_i x_j
+    
+    Transformation yields Ising Hamiltonian:
+    H = constant + sum_i h_i z_i + sum_{i<j} J_ij z_i z_j
+    
+    where:
+    - h_i = -Q_ii/2 - sum_{j≠i} Q_ij/4
+    - J_ij = Q_ij/4
+    """
     n = Q.shape[0]
     h = np.zeros(n)
     J = np.zeros((n, n))
 
     for i in range(n):
-        h[i] = Q[i, i] / 2.0
+        # Linear term from diagonal
+        h[i] = -Q[i, i] / 2.0
+        
+        # Linear terms from off-diagonal interactions
+        for j in range(n):
+            if i != j:
+                h[i] -= Q[i, j] / 4.0
+        
+        # Quadratic couplings
         for j in range(i + 1, n):
             J[i, j] = Q[i, j] / 4.0
             J[j, i] = J[i, j]
@@ -260,10 +281,25 @@ def solve_qaoa_local(
     if best_sample_energy is not None:
         best_sample_energy = float(best_sample_energy)
 
+    # Find the best makespan among all sampled bitstrings (for debugging/analysis)
+    p = [float(task["p_i"]) for task in tasks]
+    best_makespan_bitstring = None
+    best_makespan_value = float("inf")
+    min_makespan_in_samples = None
+    
+    for bitstring, count in final_counts.items():
+        vector = bitstring_to_vector(bitstring, num_qubits)
+        schedule_temp = decode_solution_vector(vector, p)
+        makespan = schedule_temp["makespan"]
+        if makespan < best_makespan_value:
+            best_makespan_value = makespan
+            best_makespan_bitstring = bitstring
+        if min_makespan_in_samples is None or makespan < min_makespan_in_samples:
+            min_makespan_in_samples = makespan
+
     schedule = None
     if best_bitstring is not None:
         vector = bitstring_to_vector(best_bitstring, num_qubits)
-        p = [float(task["p_i"]) for task in tasks]
         schedule = decode_solution_vector(vector, p)
 
     energy_sorted = sorted(
@@ -294,6 +330,8 @@ def solve_qaoa_local(
         "optimal_params": best_params.tolist(),
         "best_bitstring": best_bitstring,
         "best_sample_energy": best_sample_energy,
+        "best_makespan_bitstring": best_makespan_bitstring,
+        "min_makespan_in_samples": float(min_makespan_in_samples) if min_makespan_in_samples is not None else None,
         "counts": {k: int(v) for k, v in final_counts.items()},
         "best_schedule": schedule,
         "shots": shots,
