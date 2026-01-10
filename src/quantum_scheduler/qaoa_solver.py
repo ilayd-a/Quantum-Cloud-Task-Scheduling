@@ -10,39 +10,21 @@ from .utils.decoder import bitstring_to_vector, decode_solution_vector
 
 
 def qubo_to_ising(Q):
-    """
-    Convert a QUBO matrix Q into Ising parameters (h, J).
-    
-    Correct transformation: x_i = (1 - z_i)/2 where x ∈ {0,1}, z ∈ {-1,+1}
-    
-    For QUBO: E = sum_i Q_ii x_i + sum_{i<j} Q_ij x_i x_j
-    
-    Transformation yields Ising Hamiltonian:
-    H = constant + sum_i h_i z_i + sum_{i<j} J_ij z_i z_j
-    
-    where:
-    - h_i = -Q_ii/2 - sum_{j≠i} Q_ij/4
-    - J_ij = Q_ij/4
-    """
     n = Q.shape[0]
     h = np.zeros(n)
     J = np.zeros((n, n))
 
     for i in range(n):
-        # Linear term from diagonal
-        h[i] = -Q[i, i] / 2.0
-        
-        # Linear terms from off-diagonal interactions
+        h[i] = Q[i, i] / 2.0
         for j in range(n):
             if i != j:
-                h[i] -= Q[i, j] / 4.0
-        
-        # Quadratic couplings
+                h[i] += Q[i, j] / 4.0
         for j in range(i + 1, n):
             J[i, j] = Q[i, j] / 4.0
             J[j, i] = J[i, j]
 
     return h, J
+
 
 
 def qaoa_circuit(h, J, n, reps=1, measure=False):
