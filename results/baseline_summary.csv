@@ -1,0 +1,5 @@
+dataset,num_tasks,run_id,reps,shots,final_shots,balance_penalty_multiplier,balance_penalty_actual,makespan_penalty_multiplier,priority_bias,optimizer,restarts,backend,seed,classical_method,qaoa_makespan,min_makespan_in_samples,classical_makespan,relative_gap_pct,best_sample_gap_pct,output_path
+dataset_10.csv,10,0,2,1024,8192,10.0,10.0,,0.1,cobyla,5,aer,,brute_force,64.0,53.0,53,20.754716981132077,0.0,/Users/ilaydadilek/PycharmProjects/CloudTaskScheduling/results/dataset_10_r2_shots8192_results_results.json
+dataset_10.csv,10,0,2,1024,8192,10.0,10.0,,0.1,cobyla,5,aer,,lpt,64.0,53.0,53,20.754716981132077,0.0,/Users/ilaydadilek/PycharmProjects/CloudTaskScheduling/results/dataset_10_r2_shots8192_results_results.json
+dataset_20.csv,20,0,3,1024,8192,10.0,10.0,,0.1,cobyla,5,aer,,ilp,186.0,141.0,141.0,31.914893617021278,0.0,/Users/ilaydadilek/PycharmProjects/CloudTaskScheduling/results/dataset_20_r3_shots8192_results_results.json
+dataset_25.csv,25,0,3,1024,8192,10.0,10.0,,0.1,cobyla,5,aer,,ilp,208.0,147.0,145.0,43.44827586206897,1.3793103448275863,/Users/ilaydadilek/PycharmProjects/CloudTaskScheduling/results/dataset_25_r3_shots8192_results_results.json
