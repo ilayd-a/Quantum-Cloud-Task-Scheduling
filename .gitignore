@@ -3,7 +3,5 @@ __pycache__/
 *.DS_Store
 .venv/
 .env
-results/
-analysis/
 *.egg-info/
 .pytest_cache/
