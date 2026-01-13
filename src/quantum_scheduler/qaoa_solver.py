@@ -98,6 +98,50 @@ def _select_best_bitstring(counts: dict[str, int], h, J, n):
     return best_bitstring, best_energy
 
 
+def select_best_makespan_topk(counts: dict[str, int], tasks, K: int = 50):
+    """
+    Select the best schedule from top-K most probable bitstrings by makespan.
+    
+    Args:
+        counts: Dictionary mapping bitstrings to measurement counts
+        tasks: List of task dictionaries with 'p_i' processing times
+        K: Number of top bitstrings to consider (default: 50)
+    
+    Returns:
+        Tuple of (best_bitstring, best_schedule, best_makespan) or (None, None, None) if no valid samples
+    """
+    if not counts:
+        return None, None, None
+    
+    p = [float(task["p_i"]) for task in tasks]
+    num_qubits = len(tasks)
+    
+    # Sort bitstrings by count (most probable first)
+    sorted_bitstrings = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    
+    # Take top-K
+    top_k_bitstrings = sorted_bitstrings[:K]
+    
+    best_bitstring = None
+    best_schedule = None
+    best_makespan = float("inf")
+    
+    for bitstring, count in top_k_bitstrings:
+        vector = bitstring_to_vector(bitstring, num_qubits)
+        schedule = decode_solution_vector(vector, p)
+        makespan = schedule["makespan"]
+        
+        if makespan < best_makespan:
+            best_makespan = makespan
+            best_bitstring = bitstring
+            best_schedule = schedule
+    
+    if best_bitstring is None:
+        return None, None, None
+    
+    return best_bitstring, best_schedule, best_makespan
+
+
 def _assign_parameters(params, beta_params, gamma_params):
     if len(params) != len(beta_params) + len(gamma_params):
         raise ValueError(
@@ -169,6 +213,7 @@ def solve_qaoa_local(
     restarts: int = 5,
     backend_type: str = "aer",
     seed: int | None = None,
+    top_k: int = 50,
 ):
     """
     Optimize a QAOA circuit locally on AerSimulator and return both the energy
@@ -284,11 +329,16 @@ def solve_qaoa_local(
         vector = bitstring_to_vector(best_bitstring, num_qubits)
         schedule = decode_solution_vector(vector, p)
 
+    # Top-K postselection by makespan
+    topk_bitstring, topk_schedule, topk_makespan = select_best_makespan_topk(
+        final_counts, tasks, K=top_k
+    )
+
     energy_sorted = sorted(
         final_counts.keys(),
         key=lambda bit: _bitstring_energy(bit, h, J, num_qubits),
     )
-    top_k = []
+    top_energy_solutions = []
     seen = set()
     for bit in energy_sorted:
         if bit in seen:
@@ -296,7 +346,7 @@ def solve_qaoa_local(
         seen.add(bit)
         vector = bitstring_to_vector(bit, num_qubits)
         schedule_info = decode_solution_vector(vector, [float(task["p_i"]) for task in tasks])
-        top_k.append(
+        top_energy_solutions.append(
             {
                 "bitstring": bit,
                 "energy": _bitstring_energy(bit, h, J, num_qubits),
@@ -304,7 +354,7 @@ def solve_qaoa_local(
                 "loads": schedule_info["loads"],
             }
         )
-        if len(top_k) == 3:
+        if len(top_energy_solutions) == 3:
             break
 
     return {
@@ -315,7 +365,11 @@ def solve_qaoa_local(
         "best_makespan_bitstring": best_makespan_bitstring,
         "min_makespan_in_samples": float(min_makespan_in_samples) if min_makespan_in_samples is not None else None,
         "counts": {k: int(v) for k, v in final_counts.items()},
-        "best_schedule": schedule,
+        "best_schedule": schedule,  # Min-energy selection schedule
+        "topk_bitstring": topk_bitstring,
+        "topk_schedule": topk_schedule,  # Top-K postselection schedule
+        "topk_makespan": float(topk_makespan) if topk_makespan is not None else None,
+        "top_k": top_k,
         "shots": shots,
         "final_shots": final_shots,
         "balance_penalty_multiplier": penalty_multiplier,
@@ -327,5 +381,5 @@ def solve_qaoa_local(
         "backend": backend_choice,
         "evaluations": eval_counter["count"],
         "energy_trace": energy_trace,
-        "top_solutions": top_k,
+        "top_solutions": top_energy_solutions,
     }
