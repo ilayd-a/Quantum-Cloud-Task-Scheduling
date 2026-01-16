@@ -136,6 +136,7 @@ def run_single_experiment(args: argparse.Namespace, dataset_override: str | Path
         "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
         "run_id": run_id,
         "classical_method": args.classical_method,
+        "tag": args.tag,  # Save tag in JSON for filtering
         "config": {
             "reps": args.reps,
             "maxiter": args.maxiter,
@@ -148,6 +149,7 @@ def run_single_experiment(args: argparse.Namespace, dataset_override: str | Path
             "restarts": args.restarts,
             "backend": args.backend,
             "seed": args.seed,
+            "tag": args.tag,  # Also save tag in config for filtering
         },
         "qaoa": qaoa_res,
         "classical": classical_res,
