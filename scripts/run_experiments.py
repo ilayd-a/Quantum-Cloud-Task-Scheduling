@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-runs", type=int, default=1, help="Number of independent runs (for statistical analysis)")
     parser.add_argument("--classical-method", choices=["brute_force", "ilp", "greedy", "lpt"], default="brute_force", help="Classical solver method")
     parser.add_argument("--top-k", type=int, default=50, help="Number of top bitstrings to consider for makespan-based postselection (default: 50)")
+    parser.add_argument("--results-subdir", type=str, default=None, help="Subdirectory within results/ to save files (e.g., 'stat_k200' saves to results/stat_k200/)")
     return parser.parse_args()
 
 
@@ -65,7 +66,13 @@ def build_output_path(dataset_path: Path, args: argparse.Namespace, run_id: int 
         suffix += f"_{args.tag}"
     if run_id is not None and args.num_runs > 1:
         suffix += f"_run{run_id}"
-    return ROOT / "results" / f"{dataset_path.stem}{suffix}_results.json"
+    
+    # Determine output directory (with optional subdirectory)
+    output_dir = ROOT / "results"
+    if args.results_subdir:
+        output_dir = output_dir / args.results_subdir
+    
+    return output_dir / f"{dataset_path.stem}{suffix}_results.json"
 
 
 def run_single_experiment(args: argparse.Namespace, dataset_override: str | Path | None = None, output_override: str | Path | None = None, run_id: int | None = None) -> Dict[str, Any]:

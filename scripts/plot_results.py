@@ -51,6 +51,12 @@ def parse_args() -> argparse.Namespace:
         help="Directory where plots will be saved (default: <results-dir>/plots)",
     )
     parser.add_argument(
+        "--final-plots-dir",
+        default=None,
+        type=Path,
+        help="Final plots directory - if specified, plots will be saved to <final-plots-dir>/<tag>/ (creates organized structure)",
+    )
+    parser.add_argument(
         "--tag",
         default=None,
         type=str,
@@ -720,7 +726,18 @@ def main() -> None:
     args = parse_args()
 
     results_dir = args.results_dir
-    plots_dir = args.plots_dir if args.plots_dir is not None else (results_dir / "plots")
+    
+    # Determine plots directory
+    if args.final_plots_dir:
+        # Create organized structure: final_plots/<tag>/
+        tag_suffix = args.tag if args.tag else "all"
+        qaoa_suffix = args.qaoa_selection
+        plots_dir = args.final_plots_dir / tag_suffix / qaoa_suffix
+    elif args.plots_dir:
+        plots_dir = args.plots_dir
+    else:
+        plots_dir = results_dir / "plots"
+    
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     data = load_result_files(results_dir)
